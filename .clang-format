@@ -1,0 +1,7 @@
+---
+Language: Cpp
+BasedOnStyle: WebKit
+ColumnLimit: 120
+InsertBraces: true
+InsertNewlineAtEOF: true
+NamespaceIndentation: None

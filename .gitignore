@@ -1,0 +1,4 @@
+# ignore build and clangd .cache
+.cache
+.build
+build
