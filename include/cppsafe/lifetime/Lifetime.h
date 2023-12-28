@@ -11,8 +11,8 @@
 #define LLVM_CLANG_ANALYSIS_ANALYSES_LIFETIME_H
 
 #include "clang/Analysis/Analyses/Dominators.h"
-#include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/SourceLocation.h"
+
 #include <string>
 
 namespace clang {

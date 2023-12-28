@@ -15,8 +15,9 @@
 #include "clang/Analysis/FlowSensitive/DataflowWorklist.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+
+#include <utility>
 
 #define DEBUG_TYPE "Lifetime Analysis"
 
@@ -30,7 +31,7 @@ void LifetimeReporterBase::initializeFiltering(CFG* Cfg, IsCleaningBlockTy ICB)
     this->Cfg = Cfg;
     PostDom.buildDominatorTree(Cfg);
     Dom.buildDominatorTree(Cfg);
-    IsCleaningBlock = ICB;
+    IsCleaningBlock = std::move(ICB);
 }
 
 namespace {
@@ -204,7 +205,8 @@ public:
         AC.getCFGBuildOptions().AddCXXNewAllocator = true;
         AC.getCFGBuildOptions().AddCXXDefaultInitExprInCtors = true;
         AC.getCFGBuildOptions().AddCXXDefaultInitExprInAggregates = true;
-        // TODO AddTemporaryDtors
+        AC.getCFGBuildOptions().AddTemporaryDtors = true;
+        AC.getCFGBuildOptions().AddImplicitDtors = true;
         // TODO AddEHEdges
         AC.getCFGBuildOptions().setAllAlwaysAdd();
         ControlFlowGraph = AC.getCFG();
@@ -237,7 +239,7 @@ public:
         }
     }
 
-    void TraverseBlocks();
+    void traverseBlocks();
 
     void dumpCFG() const { ControlFlowGraph->dump(ASTCtxt.getLangOpts(), true); }
 };
@@ -245,7 +247,7 @@ public:
 static void mergePMaps(PSetsMap& From, PSetsMap& To)
 {
     for (auto& I : From) {
-        auto& Var = I.first;
+        const auto& Var = I.first;
         auto& PS = I.second;
         auto J = To.find(Var);
         if (J == To.end()) {
@@ -274,7 +276,7 @@ void LifetimeContext::computeEntryPSets(const CFGBlock& B)
         BC.FalseBranchExitPMap = PSetsMap();
     }
 
-    for (auto& PredBlock : B.preds()) {
+    for (const auto& PredBlock : B.preds()) {
         if (!PredBlock.isReachable()) {
             continue;
         }
@@ -337,13 +339,13 @@ static void createEntryPsetsForMembers(const CXXMethodDecl* Method, PSetsMap& PM
 
 /// Traverse all blocks of the CFG.
 /// The traversal is repeated until the psets come to a steady state.
-void LifetimeContext::TraverseBlocks()
+void LifetimeContext::traverseBlocks()
 {
     static constexpr unsigned IterationLimit = 100000;
 
     ForwardDataflowWorklist WorkList(*ControlFlowGraph, AC);
     // The entry block introduces the function parameters into the psets.
-    auto Start = &ControlFlowGraph->getEntry();
+    auto *Start = &ControlFlowGraph->getEntry();
     auto& BC = getBlockContext(Start);
     // ExitPSets are the function parameters.
     getLifetimeContracts(BC.ExitPMap, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter);
@@ -355,7 +357,7 @@ void LifetimeContext::TraverseBlocks()
 
     unsigned IterationCount = 0;
     llvm::BitVector Visited(ControlFlowGraph->getNumBlockIDs());
-    const CFGBlock* Current;
+    const CFGBlock* Current = nullptr;
     while ((Current = WorkList.dequeue()) && IterationCount < IterationLimit) {
         if (Current == &ControlFlowGraph->getExit()) {
             continue;
@@ -449,7 +451,7 @@ void runAnalysis(
         }
     }
 
-    if (auto* M = dyn_cast<CXXMethodDecl>(Func)) {
+    if (const auto* M = dyn_cast<CXXMethodDecl>(Func)) {
         // Do not check the bodies of methods on Owners.
         auto Class = classifyTypeCategory(M->getParent()->getTypeForDecl());
         if (Class.TC == TypeCategory::Owner) {
@@ -458,6 +460,6 @@ void runAnalysis(
     }
 
     LifetimeContext LC(Context, Reporter, Func, IsConvertible);
-    LC.TraverseBlocks();
+    LC.traverseBlocks();
 }
 } // namespace clang

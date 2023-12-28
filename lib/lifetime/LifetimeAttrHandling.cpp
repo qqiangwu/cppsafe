@@ -17,15 +17,14 @@
 
 #include <map>
 
-namespace clang {
-namespace lifetime {
+namespace clang::lifetime {
 
 // Easier access the attribute's representation.
 using AttrPointsToMap = std::map<ContractVariable, ContractPSet>;
 
 static const Expr* ignoreReturnValues(const Expr* E)
 {
-    const Expr* Original;
+    const Expr* Original = nullptr;
     do {
         Original = E;
         E = E->IgnoreImplicit();
@@ -199,7 +198,7 @@ public:
         LifetimeReporterBase& Reporter)
         : FD(FD->getCanonicalDecl())
         , ASTCtxt(ASTCtxt)
-        , isConvertible(isConvertible)
+        , IsConvertible(isConvertible)
         , Reporter(Reporter)
     {
     }
@@ -229,10 +228,10 @@ public:
                     Reporter.warnUnsupportedExpr(Range);
                 }
             }
-            for (ContractVariable Var : IOAttr->InVars) {
+            for (const ContractVariable& Var : IOAttr->InVars) {
                 Locations.Input.push_back(Var);
             }
-            for (ContractVariable Var : IOAttr->OutVars) {
+            for (const ContractVariable& Var : IOAttr->OutVars) {
                 Locations.Output.push_back(Var);
             }
         }
@@ -261,8 +260,8 @@ public:
                 ContractAttr->PrePSets.emplace(ParamDerefLoc, ParamDerefPSet);
                 if (ParamType->isLValueReferenceType()) {
                     if (PointeeType.isConstQualified()) {
-                        addUnannotated(Locations.Input_weak, IOAttr, ParamLoc);
-                        addUnannotated(Locations.Input_weak, IOAttr, ParamDerefLoc);
+                        addUnannotated(Locations.InputWeak, IOAttr, ParamLoc);
+                        addUnannotated(Locations.InputWeak, IOAttr, ParamDerefLoc);
                     } else {
                         addUnannotated(Locations.Input, IOAttr, ParamLoc);
                         addUnannotated(Locations.Input, IOAttr, ParamDerefLoc);
@@ -329,15 +328,15 @@ public:
         }
 
         // Compute default postconditions.
-        auto computeOutput = [&](QualType OutputType) {
+        auto ComputeOutput = [&](QualType OutputType) {
             ContractPSet Ret;
-            for (ContractVariable CV : Locations.Input) {
+            for (const ContractVariable& CV : Locations.Input) {
                 if (canAssign(getLocationType(CV), OutputType)) {
                     Ret.merge(ContractAttr->PrePSets.at(CV));
                 }
             }
             if (Ret.isEmpty()) {
-                for (ContractVariable CV : Locations.Input_weak) {
+                for (const ContractVariable& CV : Locations.InputWeak) {
                     if (canAssign(getLocationType(CV), OutputType)) {
                         Ret.merge(ContractAttr->PrePSets.at(CV));
                     }
@@ -355,8 +354,8 @@ public:
             Locations.Output.push_back(ContractVariable::returnVal());
         }
 
-        for (ContractVariable CV : Locations.Output) {
-            ContractAttr->PostPSets[CV] = computeOutput(getLocationType(CV));
+        for (const ContractVariable& CV : Locations.Output) {
+            ContractAttr->PostPSets[CV] = ComputeOutput(getLocationType(CV));
         }
 
         // Process user defined postconditions.
@@ -381,7 +380,7 @@ private:
             return false;
         }
 
-        return isConvertible(ASTCtxt.getPointerType(FromPointee), ASTCtxt.getPointerType(ToPointee));
+        return IsConvertible(ASTCtxt.getPointerType(FromPointee), ASTCtxt.getPointerType(ToPointee));
     }
 
     QualType getLocationType(ContractVariable CV) const
@@ -393,7 +392,7 @@ private:
     }
 
     struct ParamDerivedLocations {
-        std::vector<ContractVariable> Input_weak;
+        std::vector<ContractVariable> InputWeak;
         std::vector<ContractVariable> Input;
         std::vector<ContractVariable> Output;
     };
@@ -414,7 +413,7 @@ private:
 
     const FunctionDecl* FD;
     const ASTContext& ASTCtxt;
-    IsConvertibleTy isConvertible;
+    IsConvertibleTy IsConvertible;
     LifetimeReporterBase& Reporter;
 };
 
@@ -422,25 +421,25 @@ private:
 
 LifetimeContractAttr* getLifetimeContracts(const FunctionDecl* FD)
 {
-    static std::map<const FunctionDecl*, LifetimeContractAttr*> sContractCache;
+    static std::map<const FunctionDecl*, LifetimeContractAttr> ContractCache;
 
     FD = FD->getCanonicalDecl();
-    auto it = sContractCache.find(FD);
-    if (it == sContractCache.end()) {
-        it = sContractCache.emplace(FD, new LifetimeContractAttr {}).first;
+    auto It = ContractCache.find(FD);
+    if (It == ContractCache.end()) {
+        It = ContractCache.emplace(FD, LifetimeContractAttr{}).first;
     }
 
-    return it->second;
+    return &It->second;
 }
 
 void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTContext& ASTCtxt, const CFGBlock* Block,
-    IsConvertibleTy isConvertible, LifetimeReporterBase& Reporter, bool Pre)
+    IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter, bool Pre)
 {
     auto* ContractAttr = getLifetimeContracts(FD);
 
     // TODO: this check is insufficient for functions like int f(int);
     if (ContractAttr->PrePSets.empty() && ContractAttr->PostPSets.empty()) {
-        PSetCollector Collector(FD, ASTCtxt, isConvertible, Reporter);
+        PSetCollector Collector(FD, ASTCtxt, IsConvertible, Reporter);
         Collector.fillPSetsForDecl(ContractAttr);
     }
 
@@ -465,5 +464,4 @@ void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTConte
     }
 }
 
-} // namespace lifetime
-} // namespace clang
+} // namespace clang::lifetime

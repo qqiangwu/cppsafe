@@ -26,8 +26,8 @@ public:
     std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance&, llvm::StringRef) override
     {
         const CppsafeOptions Options {
-            .checkUseAfterMove = WarnMove,
-            .checkFunctions = WarnFunc,
+            .CheckUseAfterMove = WarnMove,
+            .CheckFunctions = WarnFunc,
         };
         return std::make_unique<AstConsumer>(Options);
     }

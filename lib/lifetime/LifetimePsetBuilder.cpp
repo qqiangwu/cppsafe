@@ -1445,7 +1445,7 @@ void PSetsBuilder::VisitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
             }
 
             // Kill all temporaries that vanish at the end of the full expression
-            if (isa<ExprWithCleanups>(S) || isa<DeclStmt>(S)) {
+            if (isa<DeclStmt>(S)) {
                 // Remove all materialized temporaries that are not extended.
                 eraseVariable(nullptr, S->getEndLoc());
             }
@@ -1466,7 +1466,6 @@ void PSetsBuilder::VisitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
         }
         case CFGElement::LifetimeEnds: {
             auto Leaver = E.castAs<CFGLifetimeEnds>();
-
             // Stop tracking Variables that leave scope.
             eraseVariable(Leaver.getVarDecl(), Leaver.getTriggerStmt()->getEndLoc());
             break;
@@ -1476,7 +1475,14 @@ void PSetsBuilder::VisitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
         case CFGElement::DeleteDtor:
         case CFGElement::BaseDtor:
         case CFGElement::MemberDtor:
-        case CFGElement::TemporaryDtor:
+            break;
+
+        case CFGElement::TemporaryDtor: {
+            auto Dtor = E.castAs<CFGTemporaryDtor>();
+            eraseVariable(nullptr, Dtor.getBindTemporaryExpr()->getEndLoc());
+            break;
+        }
+
         case CFGElement::Initializer:
         case CFGElement::ScopeBegin:
         case CFGElement::ScopeEnd:

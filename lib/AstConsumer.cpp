@@ -173,7 +173,7 @@ public:
         assert((unsigned)T < sizeof(Warnings) / sizeof(Warnings[0]));
         assert(T != WarnType::Dangling && T != WarnType::Null);
         if (enableIfNew(Range)) {
-            S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Warnings.at((int)T)) << Possibly << Range;
+            S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Warnings.at((int)T)]) << Possibly << Range;
         }
     }
     void warnNonStaticThrow(SourceRange Range, StringRef ThrownPset) final
