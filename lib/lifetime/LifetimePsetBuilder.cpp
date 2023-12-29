@@ -17,6 +17,7 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Lex/Lexer.h"
+#include <clang/AST/Expr.h>
 
 namespace clang::lifetime {
 
@@ -502,7 +503,7 @@ public:
             return;
         }
 
-        auto *Ctor = E->getConstructor();
+        auto* Ctor = E->getConstructor();
         auto ParmTy = Ctor->getParamDecl(0)->getType();
         auto TC = classifyTypeCategory(E->getArg(0)->getType());
         // For ctors taking a const reference we assume that we will not take the
@@ -1096,7 +1097,7 @@ PSet PSetsBuilder::getPSet(const Variable& P) const
         return {};
     }
 
-    if (const auto *VD = P.asVarDecl()) {
+    if (const auto* VD = P.asVarDecl()) {
         // Handle goto_forward_over_decl() in test attr-pset.cpp
         if (!isa<ParmVarDecl>(VD)) {
             return PSet::invalid(InvalidationReason::NotInitialized(VD->getLocation(), CurrentBlock));
@@ -1339,7 +1340,7 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
         return true;
     }
     case 3: {
-        const auto *Args = Callee->getTemplateSpecializationArgs();
+        const auto* Args = Callee->getTemplateSpecializationArgs();
         auto QType = Args->get(0).getAsType();
         auto Class = classifyTypeCategory(QType);
         if (Class.TC == TypeCategory::Pointer || Class.TC == TypeCategory::Owner) {
@@ -1368,10 +1369,10 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
         FD = FD->getCanonicalDecl();
 
         PSetsMap PreConditions;
-        getLifetimeContracts(PreConditions, Callee, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/true);
+        getLifetimeContracts(PreConditions, FD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/true);
 
         PSetsMap PostConditions;
-        getLifetimeContracts(PreConditions, Callee, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
+        getLifetimeContracts(PostConditions, FD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
 
         auto PrintContract = [this, &Range](const auto& E, const std::string& Contract) {
             std::string KeyText = Contract + "(";
@@ -1400,7 +1401,7 @@ static const Stmt* getRealTerminator(const CFGBlock& B)
     // the cast operation. But we still want to compute two sets for q so
     // we can propagate this information through the cast.
     if (B.succ_size() == 1 && !B.empty() && B.rbegin()->getKind() == CFGElement::Kind::Statement) {
-        auto *Succ = B.succ_begin()->getReachableBlock();
+        auto* Succ = B.succ_begin()->getReachableBlock();
         if (Succ && isNoopBlock(*Succ) && Succ->succ_size() == 2) {
             return B.rbegin()->castAs<CFGStmt>().getStmt();
         }
@@ -1434,6 +1435,10 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
         switch (E.getKind()) {
         case CFGElement::Statement: {
             const Stmt* S = E.castAs<CFGStmt>().getStmt();
+            if (isa<RecoveryExpr>(S)) {
+                return;
+            }
+
             if (!isIgnoredStmt(S)) {
                 Visit(S);
                 if (isAnalysisDisabled()) {
@@ -1487,6 +1492,7 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
             break;
 
         case CFGElement::TemporaryDtor: {
+            // Acts as ExprWithCleanups
             auto Dtor = E.castAs<CFGTemporaryDtor>();
             eraseVariable(nullptr, Dtor.getBindTemporaryExpr()->getEndLoc());
             break;

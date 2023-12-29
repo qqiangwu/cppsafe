@@ -526,7 +526,7 @@ public:
         }
 
         // If 'this' includes o'', then 'O' must include o'' or o'. (etc.)
-        for (auto& V : Vars) {
+        for (const auto& V : Vars) {
             auto I = O.Vars.find(V);
             if (I == O.Vars.end() || I->getOrder() > V.getOrder()) {
                 Reporter.warnWrongPset(Range, Source, SourceName, str(), O.str());

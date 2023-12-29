@@ -12,7 +12,6 @@
 
 #include "Lifetime.h"
 #include "LifetimePset.h"
-#include "clang/Basic/SourceLocation.h"
 
 namespace clang {
 class CFGBlock;

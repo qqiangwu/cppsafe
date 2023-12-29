@@ -9,6 +9,7 @@
 
 #include "cppsafe/lifetime/Attr.h"
 #include "cppsafe/lifetime/Lifetime.h"
+#include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
 #include "cppsafe/util/type.h"
 
@@ -408,7 +409,8 @@ private:
         return Attr && llvm::is_contained(Attr->InVars, Var);
     }
 
-    static void addUnannotated(std::vector<ContractVariable>& To, const LifetimeIOAttr* Attr, const ContractVariable& Var)
+    static void addUnannotated(
+        std::vector<ContractVariable>& To, const LifetimeIOAttr* Attr, const ContractVariable& Var)
     {
         if (Attr && (llvm::is_contained(Attr->InVars, Var) || llvm::is_contained(Attr->OutVars, Var))) {
             return;
@@ -432,7 +434,7 @@ static LifetimeContractAttr* getLifetimeContracts(const FunctionDecl* FD)
     FD = FD->getCanonicalDecl();
     auto It = ContractCache.find(FD);
     if (It == ContractCache.end()) {
-        It = ContractCache.emplace(FD, LifetimeContractAttr{}).first;
+        It = ContractCache.emplace(FD, LifetimeContractAttr {}).first;
     }
 
     return &It->second;

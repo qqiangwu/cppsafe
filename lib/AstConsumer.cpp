@@ -1,4 +1,5 @@
 #include "cppsafe/AstConsumer.h"
+#include "cppsafe/lifetime/Lifetime.h"
 
 #include <clang/AST/Type.h>
 #include <clang/Basic/DiagnosticIDs.h>

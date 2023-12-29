@@ -1,10 +1,9 @@
 #pragma once
 
-#include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/Options.h"
 
 #include <clang/AST/Decl.h>
-#include <clang/Basic/Specifiers.h>
+#include <clang/AST/DeclCXX.h>
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/SemaConsumer.h>
 #include <llvm/Support/Casting.h>
@@ -25,8 +24,17 @@ public:
     bool HandleTopLevelDecl(clang::DeclGroupRef D) override
     {
         for (const auto* Decl : D) {
+            if (const auto* RD = llvm::dyn_cast<clang::CXXRecordDecl>(Decl)) {
+                for (const auto* MD : RD->methods()) {
+                    run(MD);
+                }
+
+                continue;
+            }
+
             if (const auto* Fn = llvm::dyn_cast<clang::FunctionDecl>(Decl)) {
                 run(Fn);
+                continue;
             }
         }
 
