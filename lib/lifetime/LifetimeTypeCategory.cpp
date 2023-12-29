@@ -17,8 +17,7 @@
 
 #define CLASSIFY_DEBUG 0
 
-namespace clang {
-namespace lifetime {
+namespace clang::lifetime {
 
 static QualType getPointeeType(const Type* T);
 
@@ -28,14 +27,14 @@ static bool hasMethodLike(const CXXRecordDecl* R, T Predicate, const CXXMethodDe
     // TODO cache IdentifierInfo to avoid string compare
     auto CallBack = [Predicate, FoundMD](const CXXRecordDecl* Base) {
         return std::none_of(Base->decls_begin(), Base->decls_end(), [Predicate, FoundMD](const Decl* D) {
-            if (auto* M = dyn_cast<CXXMethodDecl>(D)) {
+            if (const auto* M = dyn_cast<CXXMethodDecl>(D)) {
                 bool Found = Predicate(M);
                 if (Found && FoundMD) {
                     *FoundMD = M;
                 }
                 return Found;
             }
-            if (auto* Tmpl = dyn_cast<FunctionTemplateDecl>(D)) {
+            if (const auto* Tmpl = dyn_cast<FunctionTemplateDecl>(D)) {
                 if (auto* M = dyn_cast<CXXMethodDecl>(Tmpl->getTemplatedDecl())) {
                     bool Found = Predicate(M);
                     if (Found && FoundMD) {
@@ -113,7 +112,7 @@ static bool hasDerefOperations(const CXXRecordDecl* R)
 }
 
 /// Determines if D is std::vector<bool>::reference
-static bool IsVectorBoolReference(const CXXRecordDecl* D)
+static bool isVectorBoolReference(const CXXRecordDecl* D)
 {
     assert(D);
     static std::set<StringRef> StdVectorBoolReference { "__bit_const_reference" /* for libc++ */,
@@ -121,7 +120,7 @@ static bool IsVectorBoolReference(const CXXRecordDecl* D)
     if (!D->isInStdNamespace() || !D->getIdentifier()) {
         return false;
     }
-    return StdVectorBoolReference.count(D->getName());
+    return StdVectorBoolReference.contains(D->getName());
 }
 
 /// Classifies some well-known std:: types or returns an empty optional.
@@ -138,7 +137,7 @@ static std::optional<TypeCategory> classifyStd(const Type* T)
         return {};
     }
 
-    if (IsVectorBoolReference(Decl)) {
+    if (isVectorBoolReference(Decl)) {
         return TypeCategory::Pointer;
     }
 
@@ -325,7 +324,7 @@ TypeClassification classifyTypeCategory(const Type* T)
 // TODO: handle clang nullability annotations?
 bool isNullableType(QualType QT)
 {
-    auto getKnownNullability = [](StringRef Name) -> std::optional<bool> {
+    auto GetKnownNullability = [](StringRef Name) -> std::optional<bool> {
         if (Name == "nullable") {
             return true;
         }
@@ -339,7 +338,7 @@ bool isNullableType(QualType QT)
         if (TemplSpec->isTypeAlias()) {
             if (const auto* TD = TemplSpec->getTemplateName().getAsTemplateDecl()) {
                 if (TD->getIdentifier()) {
-                    if (auto Nullability = getKnownNullability(TD->getName())) {
+                    if (auto Nullability = GetKnownNullability(TD->getName())) {
                         return *Nullability;
                     }
                 }
@@ -348,13 +347,13 @@ bool isNullableType(QualType QT)
     }
     while (const auto* TypeDef = Inner->getAs<TypedefType>()) {
         const NamedDecl* Decl = TypeDef->getDecl();
-        if (auto Nullability = getKnownNullability(Decl->getName())) {
+        if (auto Nullability = GetKnownNullability(Decl->getName())) {
             return *Nullability;
         }
         Inner = TypeDef->desugar();
     }
     if (const auto* RD = Inner->getAsCXXRecordDecl()) {
-        if (auto Nullability = getKnownNullability(RD->getName())) {
+        if (auto Nullability = GetKnownNullability(RD->getName())) {
             return *Nullability;
         }
     }
@@ -365,7 +364,7 @@ static QualType getPointeeType(const CXXRecordDecl* R)
 {
     assert(R);
 
-    for (auto D : R->decls()) {
+    for (auto *D : R->decls()) {
         if (const auto* TypeDef = dyn_cast<TypedefNameDecl>(D)) {
             if (TypeDef->getName() == "value_type") {
                 return TypeDef->getUnderlyingType().getCanonicalType();
@@ -381,7 +380,7 @@ static QualType getPointeeType(const CXXRecordDecl* R)
     };
     OpTy Ops[] = { { OO_Star, 0, false }, { OO_Arrow, 0, false }, { OO_Subscript, -1, true } };
     for (auto P : Ops) {
-        const CXXMethodDecl* F;
+        const CXXMethodDecl* F = nullptr;
         if (hasOperator(R, P.Kind, P.ParamNum, P.ConstOnly, &F) && !F->isDependentContext()) {
             auto PointeeType = F->getReturnType();
             if (PointeeType->isReferenceType() || PointeeType->isAnyPointerType()) {
@@ -394,7 +393,7 @@ static QualType getPointeeType(const CXXRecordDecl* R)
         }
     }
 
-    const CXXMethodDecl* FoundMD;
+    const CXXMethodDecl* FoundMD = nullptr;
     if (hasMethodWithNameAndArgNum(R, "begin", 0, &FoundMD)) {
         auto PointeeType = FoundMD->getReturnType();
         if (classifyTypeCategory(PointeeType) != TypeCategory::Pointer) {
@@ -423,7 +422,7 @@ static QualType getPointeeTypeImpl(const Type* T)
 
     if (T->isArrayType()) {
         // TODO: use AstContext.getAsArrayType() to correctly promote qualifiers
-        auto* AT = dyn_cast<ArrayType>(T);
+        const auto* AT = dyn_cast<ArrayType>(T);
         return AT->getElementType();
     }
 
@@ -433,7 +432,7 @@ static QualType getPointeeTypeImpl(const Type* T)
     }
 
     // std::vector<bool> contains std::vector<bool>::references
-    if (IsVectorBoolReference(R)) {
+    if (isVectorBoolReference(R)) {
         return R->getASTContext().BoolTy;
     }
 
@@ -447,7 +446,7 @@ static QualType getPointeeTypeImpl(const Type* T)
     }
 
     if (auto* T = dyn_cast<ClassTemplateSpecializationDecl>(R)) {
-        auto& Args = T->getTemplateArgs();
+        const auto& Args = T->getTemplateArgs();
         if (Args.size() > 0 && Args[0].getKind() == TemplateArgument::Type) {
             return Args[0].getAsType();
         }
@@ -528,7 +527,8 @@ bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
         if (RD->isInStdNamespace()) {
             if (ClassName.endswith("map") || ClassName.endswith("set")) {
                 if (FD->getDeclName().isIdentifier()
-                    && (FD->getName() == "insert" || FD->getName() == "emplace" || FD->getName() == "emplace_hint")) {
+                    && (FD->getName() == "insert" || FD->getName() == "emplace" || FD->getName() == "emplace_hint"
+                        || FD->getName() == "find")) {
                     return true;
                 }
             }
@@ -543,5 +543,4 @@ bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
     }
     return false;
 }
-} // namespace lifetime
-} // namespace clang
+} // namespace clang::lifetime

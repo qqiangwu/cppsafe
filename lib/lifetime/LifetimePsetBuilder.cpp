@@ -8,8 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
-#include "cppsafe/lifetime/Attr.h"
 #include "cppsafe/lifetime/Lifetime.h"
+#include "cppsafe/util/type.h"
 
 #include "clang/AST/Attr.h"
 #include "clang/AST/DeclTemplate.h"
@@ -29,13 +29,13 @@ namespace {
 #define DBG(x)
 #endif
 
-static bool hasPSet(const Expr* E)
+bool hasPSet(const Expr* E)
 {
     auto TC = classifyTypeCategory(E->getType());
     return E->isLValue() || TC == TypeCategory::Pointer || TC == TypeCategory::Owner;
 }
 
-static bool isPointer(const Expr* E)
+bool isPointer(const Expr* E)
 {
     auto TC = classifyTypeCategory(E->getType());
     return TC == TypeCategory::Pointer;
@@ -86,7 +86,7 @@ public:
     /// move psets from RefersTo into PsetOfExpr.
     /// Does not ignore MaterializeTemporaryExpr as Expr::IgnoreParenImpCasts
     /// would.
-    static const Expr* IgnoreTransparentExprs(const Expr* E, bool IgnoreLValueToRValue = false)
+    static const Expr* ignoreTransparentExprs(const Expr* E, bool IgnoreLValueToRValue = false)
     {
         while (true) {
             E = E->IgnoreParens();
@@ -127,10 +127,10 @@ public:
         }
     }
 
-    static bool IsIgnoredStmt(const Stmt* S)
+    static bool isIgnoredStmt(const Stmt* S)
     {
         const Expr* E = dyn_cast<Expr>(S);
-        return E && IgnoreTransparentExprs(E) != E;
+        return E && ignoreTransparentExprs(E) != E;
     }
 
     void VisitStringLiteral(const StringLiteral* SL) { setPSet(SL, PSet::staticVar(false)); }
@@ -157,11 +157,11 @@ public:
         }
     }
 
-    PSet varRefersTo(Variable V, SourceRange Range) const
+    PSet varRefersTo(const Variable& V, SourceRange Range) const
     {
         if (V.getType()->isReferenceType()) {
             auto P = getPSet(V);
-            if (CheckPSetValidity(P, Range)) {
+            if (checkPSetValidity(P, Range)) {
                 return P;
             } else {
                 return {};
@@ -195,7 +195,7 @@ public:
         // the member is a member function. In that case, the invalid
         // base will be diagnosed in VisitCallExpr().
         if (ME->getBase()->getType()->isPointerType() && !ME->hasPlaceholderType(BuiltinType::BoundMember)) {
-            CheckPSetValidity(BaseRefersTo, ME->getSourceRange());
+            checkPSetValidity(BaseRefersTo, ME->getSourceRange());
         }
 
         if (auto* FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
@@ -204,7 +204,7 @@ public:
             if (FD->getType()->isReferenceType()) {
                 // The field has reference type, apply the deref.
                 Ret = derefPSet(Ret);
-                if (!CheckPSetValidity(Ret, ME->getSourceRange())) {
+                if (!checkPSetValidity(Ret, ME->getSourceRange())) {
                     Ret = {};
                 }
             }
@@ -368,7 +368,7 @@ public:
         if (!DeclRef) {
             return false;
         }
-        auto* ArrayType = dyn_cast_or_null<ConstantArrayType>(DeclRef->getType()->getAsArrayTypeUnsafe());
+        const auto* ArrayType = dyn_cast_or_null<ConstantArrayType>(DeclRef->getType()->getAsArrayTypeUnsafe());
         if (!ArrayType) {
             return false;
         }
@@ -434,7 +434,7 @@ public:
             break;
         case UO_Deref: {
             auto PS = getPSet(UO->getSubExpr());
-            CheckPSetValidity(PS, UO->getSourceRange());
+            checkPSetValidity(PS, UO->getSourceRange());
             setPSet(UO, PS);
             return;
         }
@@ -467,11 +467,13 @@ public:
 
         // TODO: Would be nicer if the LifetimeEnds CFG nodes would appear before
         // the ReturnStmt node
-        for (auto& Var : RetPSet.vars()) {
+        for (const auto& Var : RetPSet.vars()) {
             if (Var.isTemporary()) {
                 RetPSet = PSet::invalid(InvalidationReason::TemporaryLeftScope(R->getSourceRange(), CurrentBlock));
                 break;
-            } else if (auto* VD = Var.asVarDecl()) {
+            }
+
+            if (const auto* VD = Var.asVarDecl()) {
                 // Allow to return a pointer to *p (then p is a parameter).
                 if (VD->hasLocalStorage()
                     && (!Var.isDeref() || classifyTypeCategory(VD->getType()) == TypeCategory::Owner)) {
@@ -500,7 +502,7 @@ public:
             return;
         }
 
-        auto Ctor = E->getConstructor();
+        auto *Ctor = E->getConstructor();
         auto ParmTy = Ctor->getParamDecl(0)->getType();
         auto TC = classifyTypeCategory(E->getArg(0)->getType());
         // For ctors taking a const reference we assume that we will not take the
@@ -592,7 +594,7 @@ public:
         if (isa<CXXOperatorCallExpr>(CE) && FD->isCXXInstanceMember()) {
             ObjectArg = Args[0];
             Args = Args.slice(1);
-        } else if (auto* MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
+        } else if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
             ObjectArg = MCE->getImplicitObjectArgument();
         }
 
@@ -625,9 +627,9 @@ public:
             }
         }
 
-        auto bindTwoDerefLevels = [this, &Lookup, Checking](Variable V, const PSet& PS, PSetsMap::value_type& Pair) {
+        auto BindTwoDerefLevels = [this, &Lookup, Checking](Variable V, const PSet& PS, PSetsMap::value_type& Pair) {
             Pair.second.bind(V, PS, Checking);
-            if (!Lookup.count(V)) {
+            if (!Lookup.contains(V)) {
                 return;
             }
             V.deref();
@@ -637,7 +639,7 @@ public:
         auto ReturnIt = Fill.find(Variable::returnVal());
         forEachArgParamPair(
             CE,
-            [&](const ParmVarDecl* PVD, const Expr* Arg, int Pos) {
+            [&](const ParmVarDecl* PVD, const Expr* Arg, int) {
                 if (!PVD) {
                     // PVD is a c-style vararg argument.
                     return;
@@ -649,18 +651,18 @@ public:
                 Variable V = PVD;
                 V.deref();
                 for (auto& VarToPSet : Fill) {
-                    bindTwoDerefLevels(V, ArgPS, VarToPSet);
+                    BindTwoDerefLevels(V, ArgPS, VarToPSet);
                 }
                 // Do the binding for the return value.
                 if (ReturnIt != Fill.end()) {
-                    bindTwoDerefLevels(V, ArgPS, *ReturnIt);
+                    BindTwoDerefLevels(V, ArgPS, *ReturnIt);
                 }
             },
             [&](Variable V, const CXXRecordDecl*, const Expr* ObjExpr) {
                 // Do the binding for this and *this
                 V.deref();
                 for (auto& VarToPSet : Fill) {
-                    bindTwoDerefLevels(V, getPSet(ObjExpr), VarToPSet);
+                    BindTwoDerefLevels(V, getPSet(ObjExpr), VarToPSet);
                 }
             });
     }
@@ -674,7 +676,7 @@ public:
         // Default return value, will be overwritten if it makes sense.
         setPSet(CallE, {});
 
-        if (isa<CXXPseudoDestructorExpr>(CallE->getCallee()) || HandleDebugFunctions(CallE)) {
+        if (isa<CXXPseudoDestructorExpr>(CallE->getCallee()) || handleDebugFunctions(CallE)) {
             return;
         }
 
@@ -686,7 +688,7 @@ public:
         }
 
         /// Special case for assignment of Pointer into Pointer: copy pset
-        if (auto* OC = dyn_cast<CXXOperatorCallExpr>(CallE)) {
+        if (const auto* OC = dyn_cast<CXXOperatorCallExpr>(CallE)) {
             if (OC->getOperator() == OO_Equal && OC->getNumArgs() == 2 && isPointer(OC->getArg(0))
                 && isPointer(OC->getArg(1))) {
                 SourceRange Range = CallE->getSourceRange();
@@ -706,7 +708,7 @@ public:
         // Check preconditions. We might have them 2 levels deep.
         forEachArgParamPair(
             CallE,
-            [&](const ParmVarDecl* PVD, const Expr* Arg, int Pos) {
+            [&](const ParmVarDecl* PVD, const Expr* Arg, int) {
                 PSet ArgPS = getPSet(Arg, /*AllowNonExisting=*/true);
                 if (ArgPS.isUnknown()) {
                     return;
@@ -723,24 +725,24 @@ public:
                     }
                     return;
                 }
-                if (PreConditions.count(PVD)
+                if (PreConditions.contains(PVD)
                     && !ArgPS.checkSubstitutableFor(PreConditions[PVD], Arg->getSourceRange(), Reporter)) {
                     setPSet(Arg, PSet()); // Suppress further warnings.
                 }
                 Variable V = PVD;
                 V.deref();
-                if (PreConditions.count(V)) {
+                if (PreConditions.contains(V)) {
                     derefPSet(ArgPS).checkSubstitutableFor(PreConditions[V], Arg->getSourceRange(), Reporter);
                 }
             },
             [&](Variable V, const RecordDecl*, const Expr* ObjExpr) {
                 PSet ArgPS = getPSet(ObjExpr);
-                if (PreConditions.count(V)
+                if (PreConditions.contains(V)
                     && !ArgPS.checkSubstitutableFor(PreConditions[V], ObjExpr->getSourceRange(), Reporter)) {
                     setPSet(ObjExpr, PSet()); // Suppress further warnings.
                 }
                 V.deref();
-                if (PreConditions.count(V)) {
+                if (PreConditions.contains(V)) {
                     derefPSet(ArgPS).checkSubstitutableFor(PreConditions[V], ObjExpr->getSourceRange(), Reporter);
                 }
             });
@@ -787,17 +789,17 @@ public:
                     return;
                 }
                 PSet ArgPS = getPSet(Arg);
-                for (Variable V : ArgPS.vars()) {
+                for (const Variable& V : ArgPS.vars()) {
                     invalidateOwner(V, InvalidationReason::Modified(Arg->getSourceRange(), CurrentBlock));
                 }
             },
-            [&](Variable, const RecordDecl* RD, const Expr* ObjExpr) {
+            [&](const Variable&, const RecordDecl* RD, const Expr* ObjExpr) {
                 const auto* RT = RD->getTypeForDecl();
                 if (classifyTypeCategory(RT) != TypeCategory::Owner || isLifetimeConst(Callee, QualType(RT, 0), -1)) {
                     return;
                 }
                 PSet ArgPs = getPSet(ObjExpr);
-                for (Variable V : ArgPs.vars()) {
+                for (const Variable& V : ArgPs.vars()) {
                     invalidateOwner(V, InvalidationReason::Modified(ObjExpr->getSourceRange(), CurrentBlock));
                 }
             });
@@ -811,7 +813,7 @@ public:
         // Bind output arguments.
         forEachArgParamPair(
             CallE,
-            [&](const ParmVarDecl* PVD, const Expr* Arg, int Pos) {
+            [&](const ParmVarDecl* PVD, const Expr* Arg, int) {
                 if (!PVD) {
                     // C-style vararg argument.
                     if (!hasPSet(Arg)) {
@@ -826,13 +828,13 @@ public:
                 }
                 Variable V = PVD;
                 V.deref();
-                if (PostConditions.count(V)) {
+                if (PostConditions.contains(V)) {
                     setPSet(getPSet(Arg), PostConditions[V], Arg->getSourceRange());
                 }
             },
-            [&](Variable V, const RecordDecl* RD, const Expr* ObjExpr) {
+            [&](Variable V, const RecordDecl*, const Expr* ObjExpr) {
                 V.deref();
-                if (PostConditions.count(V)) {
+                if (PostConditions.contains(V)) {
                     setPSet(getPSet(ObjExpr), PostConditions[V], ObjExpr->getSourceRange());
                 }
             });
@@ -856,9 +858,9 @@ public:
         }
     }
 
-    bool CheckPSetValidity(const PSet& PS, SourceRange Range) const;
+    bool checkPSetValidity(const PSet& PS, SourceRange Range) const;
 
-    void invalidateVar(Variable V, InvalidationReason Reason)
+    void invalidateVar(const Variable& V, const InvalidationReason& Reason)
     {
         for (const auto& I : PMap) {
             const PSet& PS = I.second;
@@ -873,7 +875,7 @@ public:
         }
     }
 
-    void invalidateOwner(Variable V, InvalidationReason Reason)
+    void invalidateOwner(const Variable& V, const InvalidationReason& Reason)
     {
         for (const auto& I : PMap) {
             const auto& Var = I.first;
@@ -913,7 +915,7 @@ public:
             if (I->first.isTemporaryExtendedBy(VD)) {
                 I = PMap.erase(I);
             } else {
-                auto& Var = I->first;
+                const auto& Var = I->first;
                 auto& Pset = I->second;
                 bool PsetContainsTemporary
                     = llvm::any_of(Pset.vars(), [VD](const Variable& V) { return V.isTemporaryExtendedBy(VD); });
@@ -925,11 +927,11 @@ public:
         }
     }
 
-    PSet getPSet(Variable P) const;
+    PSet getPSet(const Variable& P) const;
 
     PSet getPSet(const Expr* E, bool AllowNonExisting = false) const
     {
-        E = IgnoreTransparentExprs(E);
+        E = ignoreTransparentExprs(E);
         if (E->isLValue()) {
             auto I = RefersTo.find(E);
             if (I != RefersTo.end()) {
@@ -966,7 +968,7 @@ public:
             return PSet::invalid(P.invReasons());
         }
 
-        for (auto& Var : P.vars()) {
+        for (const auto& Var : P.vars()) {
             Ret.merge(getPSet(Var));
         }
 
@@ -986,10 +988,10 @@ public:
             PSetsOfExpr[E] = PS;
         }
     }
-    void setPSet(PSet LHS, PSet RHS, SourceRange Range);
+    void setPSet(const PSet& LHS, PSet RHS, SourceRange Range);
     PSet derefPSet(const PSet& P) const;
 
-    bool HandleDebugFunctions(const CallExpr* CallE) const;
+    bool handleDebugFunctions(const CallExpr* CallE) const;
 
     PSet handlePointerAssign(QualType LHS, PSet RHS, SourceRange Range, bool AddReason = true) const
     {
@@ -1036,7 +1038,7 @@ public:
         }
     }
 
-    void UpdatePSetsFromCondition(
+    void updatePSetsFromCondition(
         const Stmt* S, bool Positive, std::optional<PSetsMap>& FalseBranchExitPMap, SourceRange Range);
 
 public:
@@ -1052,12 +1054,16 @@ public:
     {
     }
 
-    void VisitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseBranchExitPMap);
+    ~PSetsBuilder() = default;
+
+    DISALLOW_COPY_AND_MOVE(PSetsBuilder);
+
+    void visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseBranchExitPMap);
 }; // namespace
 } // namespace
 
 // Manages lifetime information for the CFG of a FunctionDecl
-PSet PSetsBuilder::getPSet(Variable P) const
+PSet PSetsBuilder::getPSet(const Variable& P) const
 {
     // Assumption: global Pointers have a pset of {static}
     if (P.hasStaticLifetime()) {
@@ -1090,7 +1096,7 @@ PSet PSetsBuilder::getPSet(Variable P) const
         return {};
     }
 
-    if (auto VD = P.asVarDecl()) {
+    if (const auto *VD = P.asVarDecl()) {
         // Handle goto_forward_over_decl() in test attr-pset.cpp
         if (!isa<ParmVarDecl>(VD)) {
             return PSet::invalid(InvalidationReason::NotInitialized(VD->getLocation(), CurrentBlock));
@@ -1136,7 +1142,7 @@ PSet PSetsBuilder::derefPSet(const PSet& PS) const
     return RetPS;
 }
 
-void PSetsBuilder::setPSet(PSet LHS, PSet RHS, SourceRange Range)
+void PSetsBuilder::setPSet(const PSet& LHS, PSet RHS, SourceRange Range)
 {
     // Assumption: global Pointers have a pset that is a subset of {static,
     // null}
@@ -1157,7 +1163,7 @@ void PSetsBuilder::setPSet(PSet LHS, PSet RHS, SourceRange Range)
             PMap.emplace(Var, RHS);
         }
     } else {
-        for (auto& V : LHS.vars()) {
+        for (const auto& V : LHS.vars()) {
             auto I = PMap.find(V);
             if (I != PMap.end()) {
                 I->second.merge(RHS);
@@ -1168,7 +1174,7 @@ void PSetsBuilder::setPSet(PSet LHS, PSet RHS, SourceRange Range)
     }
 }
 
-bool PSetsBuilder::CheckPSetValidity(const PSet& PS, SourceRange Range) const
+bool PSetsBuilder::checkPSetValidity(const PSet& PS, SourceRange Range) const
 {
     if (PS.containsInvalid()) {
         if (PS.shouldBeFilteredBasedOnNotes(Reporter) && !PS.isInvalid()) {
@@ -1202,19 +1208,19 @@ bool PSetsBuilder::CheckPSetValidity(const PSet& PS, SourceRange Range) const
 ///  ... // pset of p is 'null'
 /// else
 ///  ... // pset of p does not contain 'null'
-void PSetsBuilder::UpdatePSetsFromCondition(
+void PSetsBuilder::updatePSetsFromCondition(
     const Stmt* S, bool Positive, std::optional<PSetsMap>& FalseBranchExitPMap, SourceRange Range)
 {
     const auto* E = dyn_cast_or_null<Expr>(S);
     if (!E) {
         return;
     }
-    E = IgnoreTransparentExprs(E, /*IgnoreLValueToRValue=*/true);
+    E = ignoreTransparentExprs(E, /*IgnoreLValueToRValue=*/true);
     // Handle user written bool conversion.
     if (const auto* CE = dyn_cast<CXXMemberCallExpr>(E)) {
         if (const auto* ConvDecl = dyn_cast_or_null<CXXConversionDecl>(CE->getDirectCallee())) {
             if (ConvDecl->getConversionType()->isBooleanType()) {
-                UpdatePSetsFromCondition(
+                updatePSetsFromCondition(
                     CE->getImplicitObjectArgument(), Positive, FalseBranchExitPMap, E->getSourceRange());
             }
         }
@@ -1225,7 +1231,7 @@ void PSetsBuilder::UpdatePSetsFromCondition(
             return;
         }
         E = UO->getSubExpr();
-        UpdatePSetsFromCondition(E, !Positive, FalseBranchExitPMap, E->getSourceRange());
+        updatePSetsFromCondition(E, !Positive, FalseBranchExitPMap, E->getSourceRange());
         return;
     }
     if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
@@ -1237,16 +1243,16 @@ void PSetsBuilder::UpdatePSetsFromCondition(
         if (OC == BO_EQ) {
             Positive = !Positive;
         }
-        const auto* LHS = IgnoreTransparentExprs(BO->getLHS());
-        const auto* RHS = IgnoreTransparentExprs(BO->getRHS());
+        const auto* LHS = ignoreTransparentExprs(BO->getLHS());
+        const auto* RHS = ignoreTransparentExprs(BO->getRHS());
         if (!isPointer(LHS) || !isPointer(RHS)) {
             return;
         }
 
         if (getPSet(RHS).isNull()) {
-            UpdatePSetsFromCondition(LHS, Positive, FalseBranchExitPMap, E->getSourceRange());
+            updatePSetsFromCondition(LHS, Positive, FalseBranchExitPMap, E->getSourceRange());
         } else if (getPSet(LHS).isNull()) {
-            UpdatePSetsFromCondition(RHS, Positive, FalseBranchExitPMap, E->getSourceRange());
+            updatePSetsFromCondition(RHS, Positive, FalseBranchExitPMap, E->getSourceRange());
         }
         return;
     }
@@ -1290,7 +1296,7 @@ void PSetsBuilder::UpdatePSetsFromCondition(
 
 /// Checks if the statement S is a call to a debug function and dumps the
 /// corresponding part of the state.
-bool PSetsBuilder::HandleDebugFunctions(const CallExpr* CallE) const
+bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
 {
 
     const FunctionDecl* Callee = CallE->getDirectCallee();
@@ -1333,7 +1339,7 @@ bool PSetsBuilder::HandleDebugFunctions(const CallExpr* CallE) const
         return true;
     }
     case 3: {
-        auto Args = Callee->getTemplateSpecializationArgs();
+        const auto *Args = Callee->getTemplateSpecializationArgs();
         auto QType = Args->get(0).getAsType();
         auto Class = classifyTypeCategory(QType);
         if (Class.TC == TypeCategory::Pointer || Class.TC == TypeCategory::Owner) {
@@ -1360,24 +1366,27 @@ bool PSetsBuilder::HandleDebugFunctions(const CallExpr* CallE) const
         }
         const auto* FD = dyn_cast<FunctionDecl>(cast<DeclRefExpr>(E)->getDecl());
         FD = FD->getCanonicalDecl();
-#if 0
-        // TODO
-        const auto LAttr = FD->getAttr<LifetimeContractAttr>();
-        auto printContract = [FD, this, &Range](LifetimeContractAttr::PointsToMap::iterator::value_type E,
-                                 const std::string& Contract) {
+
+        PSetsMap PreConditions;
+        getLifetimeContracts(PreConditions, Callee, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/true);
+
+        PSetsMap PostConditions;
+        getLifetimeContracts(PreConditions, Callee, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
+
+        auto PrintContract = [this, &Range](const auto& E, const std::string& Contract) {
             std::string KeyText = Contract + "(";
-            KeyText += Variable(E.first, FD).getName();
+            KeyText += E.first.getName();
             KeyText += ")";
-            std::string PSetText = PSet(E.second, FD).str();
+            std::string PSetText = E.second.str();
             Reporter.debugPset(Range, KeyText, PSetText);
         };
-        for (const auto& E : LAttr->PrePSets) {
-            printContract(E, "Pre");
+        for (const auto& E : PreConditions) {
+            PrintContract(E, "Pre");
         }
-        for (const auto& E : LAttr->PostPSets) {
-            printContract(E, "Post");
+        for (const auto& E : PostConditions) {
+            PrintContract(E, "Post");
         }
-#endif
+
         return true;
     }
     default:
@@ -1391,7 +1400,7 @@ static const Stmt* getRealTerminator(const CFGBlock& B)
     // the cast operation. But we still want to compute two sets for q so
     // we can propagate this information through the cast.
     if (B.succ_size() == 1 && !B.empty() && B.rbegin()->getKind() == CFGElement::Kind::Statement) {
-        auto Succ = B.succ_begin()->getReachableBlock();
+        auto *Succ = B.succ_begin()->getReachableBlock();
         if (Succ && isNoopBlock(*Succ) && Succ->succ_size() == 2) {
             return B.rbegin()->castAs<CFGStmt>().getStmt();
         }
@@ -1418,14 +1427,14 @@ static SourceRange getSourceRange(const CFGElement& E)
 }
 
 // Update PSets in Builder through all CFGElements of this block
-void PSetsBuilder::VisitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseBranchExitPMap)
+void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseBranchExitPMap)
 {
     CurrentBlock = &B;
     for (const auto& E : B) {
         switch (E.getKind()) {
         case CFGElement::Statement: {
             const Stmt* S = E.castAs<CFGStmt>().getStmt();
-            if (!IsIgnoredStmt(S)) {
+            if (!isIgnoredStmt(S)) {
                 Visit(S);
                 if (isAnalysisDisabled()) {
                     return;
@@ -1492,8 +1501,8 @@ void PSetsBuilder::VisitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
             break;
         }
     }
-    if (auto* Terminator = getRealTerminator(B)) {
-        UpdatePSetsFromCondition(Terminator, /*Positive=*/true, FalseBranchExitPMap, Terminator->getEndLoc());
+    if (const auto* Terminator = getRealTerminator(B)) {
+        updatePSetsFromCondition(Terminator, /*Positive=*/true, FalseBranchExitPMap, Terminator->getEndLoc());
     }
     if (B.hasNoReturnElement() || isThrowingBlock(B)) {
         return;
@@ -1519,7 +1528,7 @@ bool VisitBlock(const FunctionDecl* FD, PSetsMap& PMap, std::optional<PSetsMap>&
 {
     Reporter.setCurrentBlock(&B);
     PSetsBuilder Builder(FD, Reporter, ASTCtxt, PMap, PSetsOfExpr, RefersTo, IsConvertible);
-    Builder.VisitBlock(B, FalseBranchExitPMap);
+    Builder.visitBlock(B, FalseBranchExitPMap);
     return !Builder.isAnalysisDisabled();
 }
 } // namespace clang

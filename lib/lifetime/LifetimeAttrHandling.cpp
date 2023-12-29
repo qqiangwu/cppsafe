@@ -10,10 +10,12 @@
 #include "cppsafe/lifetime/Attr.h"
 #include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
+#include "cppsafe/util/type.h"
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
 #include <clang/AST/ExprCXX.h>
+#include <gsl/narrow>
 
 #include <map>
 
@@ -194,14 +196,18 @@ static SourceRange fillIOVarsFromExpr(const Expr* E, llvm::SmallVectorImpl<Contr
 namespace {
 class PSetCollector {
 public:
-    PSetCollector(const FunctionDecl* FD, const ASTContext& ASTCtxt, IsConvertibleTy isConvertible,
+    PSetCollector(const FunctionDecl* FD, const ASTContext& ASTCtxt, IsConvertibleTy IsConvertible,
         LifetimeReporterBase& Reporter)
         : FD(FD->getCanonicalDecl())
         , ASTCtxt(ASTCtxt)
-        , IsConvertible(isConvertible)
+        , IsConvertible(IsConvertible)
         , Reporter(Reporter)
     {
     }
+
+    ~PSetCollector() = default;
+
+    DISALLOW_COPY_AND_MOVE(PSetCollector);
 
     /// Fill the default annotations for a function and interpret the
     /// user-provided expressions to create the ContractVariable based
@@ -270,7 +276,7 @@ public:
                 break;
             }
             case TypeCategory::Pointer:
-                if (!isLifetimeConst(FD, PointeeType, PVD->getFunctionScopeIndex())
+                if (!isLifetimeConst(FD, PointeeType, gsl::narrow_cast<int>(PVD->getFunctionScopeIndex()))
                     && !isInputAnnotated(IOAttr, ParamDerefLoc)) {
                     // Output params are initially invalid.
                     ContractPSet InvalidPS;
@@ -383,7 +389,7 @@ private:
         return IsConvertible(ASTCtxt.getPointerType(FromPointee), ASTCtxt.getPointerType(ToPointee));
     }
 
-    QualType getLocationType(ContractVariable CV) const
+    QualType getLocationType(const ContractVariable& CV) const
     {
         if (CV == ContractVariable::returnVal()) {
             return FD->getReturnType();
@@ -397,12 +403,12 @@ private:
         std::vector<ContractVariable> Output;
     };
 
-    static bool isInputAnnotated(const LifetimeIOAttr* Attr, ContractVariable Var)
+    static bool isInputAnnotated(const LifetimeIOAttr* Attr, const ContractVariable& Var)
     {
         return Attr && llvm::is_contained(Attr->InVars, Var);
     }
 
-    static void addUnannotated(std::vector<ContractVariable>& To, const LifetimeIOAttr* Attr, ContractVariable Var)
+    static void addUnannotated(std::vector<ContractVariable>& To, const LifetimeIOAttr* Attr, const ContractVariable& Var)
     {
         if (Attr && (llvm::is_contained(Attr->InVars, Var) || llvm::is_contained(Attr->OutVars, Var))) {
             return;
@@ -419,7 +425,7 @@ private:
 
 } // anonymous namespace
 
-LifetimeContractAttr* getLifetimeContracts(const FunctionDecl* FD)
+static LifetimeContractAttr* getLifetimeContracts(const FunctionDecl* FD)
 {
     static std::map<const FunctionDecl*, LifetimeContractAttr> ContractCache;
 
