@@ -314,6 +314,11 @@ public:
     {
         return { Range, Block, NoteType::Deleted };
     }
+
+    static InvalidationReason Moved(SourceRange Range, const CFGBlock* Block)
+    {
+        return { Range, Block, NoteType::Moved };
+    }
 };
 
 /// The reason how null entered a pset.

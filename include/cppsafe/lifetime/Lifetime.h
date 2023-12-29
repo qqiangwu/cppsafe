@@ -39,7 +39,7 @@ using IsConvertibleTy = llvm::function_ref<bool(QualType, QualType)>;
 
 constexpr int MaxOrderDepth = 3;
 
-enum class WarnType { DerefDangling, DerefNull, AssignNull, Null, Dangling };
+enum class WarnType { DerefDangling, DerefNull, AssignNull, Null, Dangling, UseAfterMove };
 
 enum class NoteType {
     NeverInit,
@@ -49,6 +49,7 @@ enum class NoteType {
     Modified,
     Deleted,
     Assigned,
+    Moved,
     ParamNull,
     NullDefaultConstructed,
     ComparedToNull,

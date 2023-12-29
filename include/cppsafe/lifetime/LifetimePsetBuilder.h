@@ -12,6 +12,7 @@
 
 #include "Lifetime.h"
 #include "LifetimePset.h"
+#include "cppsafe/util/type.h"
 
 namespace clang {
 class CFGBlock;
@@ -19,6 +20,29 @@ class ASTContext;
 
 namespace lifetime {
 class LifetimeReporterBase;
+
+class PSBuilder {
+public:
+    PSBuilder() = default;
+
+    virtual ~PSBuilder() = default;
+
+    DISALLOW_COPY_AND_MOVE(PSBuilder);
+
+    virtual void setPSet(const Expr* E, const PSet& PS) = 0;
+    virtual void setPSet(const PSet& LHS, PSet RHS, SourceRange Range) = 0;
+
+    virtual PSet getPSet(const Expr* E, bool AllowNonExisting = false) const = 0;
+    virtual PSet getPSet(const Variable& V) const = 0;
+    virtual PSet getPSet(const PSet& P) const = 0;
+
+    virtual PSet derefPSet(const PSet& P) const = 0;
+
+    virtual PSet handlePointerAssign(QualType LHS, PSet RHS, SourceRange Range, bool AddReason = true) const = 0;
+
+    virtual void invalidateOwner(const Variable& V, const InvalidationReason& Reason) = 0;
+    virtual void invalidateVar(const Variable& V, const InvalidationReason& Reason) = 0;
+};
 
 /// Updates psets with all effects that appear in the block.
 /// \param Reporter if non-null, emits diagnostics

@@ -21,6 +21,7 @@ enum LifetimeDiag {
     warn_deref_nullptr,
     warn_assign_nullptr,
     warn_deref_dangling,
+    warn_use_after_move,
     warn_dangling,
     warn_null,
     warn_wrong_pset,
@@ -49,6 +50,7 @@ enum LifetimeDiag {
     note_modified,
     note_deleted,
     note_assigned,
+    note_moved,
     note_here,
 };
 
@@ -58,6 +60,7 @@ const std::array Warnings {
     LifetimeDiag::warn_assign_nullptr,
     LifetimeDiag::warn_null,
     LifetimeDiag::warn_dangling,
+    LifetimeDiag::warn_use_after_move,
 };
 
 const std::array Notes {
@@ -68,6 +71,7 @@ const std::array Notes {
     LifetimeDiag::note_modified,
     LifetimeDiag::note_deleted,
     LifetimeDiag::note_assigned,
+    LifetimeDiag::note_moved,
     LifetimeDiag::note_null_reason_parameter,
     LifetimeDiag::note_null_reason_default_construct,
     LifetimeDiag::note_null_reason_compared_to_null,
@@ -102,6 +106,8 @@ public:
             DiagnosticsEngine::Warning, "assigning a%select{| possibly}0 null pointer to a non-null object");
         WarningIds[LifetimeDiag::warn_deref_dangling]
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "dereferencing a%select{| possibly}0 dangling pointer");
+        WarningIds[LifetimeDiag::warn_use_after_move] = E.getCustomDiagID(DiagnosticsEngine::Warning,
+            "use a moved-from object");
         WarningIds[LifetimeDiag::warn_dangling] = E.getCustomDiagID(DiagnosticsEngine::Warning,
             "%select{passing|returning|returning}0 a%select{| possibly}2 dangling pointer%select{ as argument|| as "
             "output value '%1'}0");
@@ -152,6 +158,7 @@ public:
         WarningIds[LifetimeDiag::note_modified] = E.getCustomDiagID(DiagnosticsEngine::Note, "modified here");
         WarningIds[LifetimeDiag::note_deleted] = E.getCustomDiagID(DiagnosticsEngine::Note, "deleted here");
         WarningIds[LifetimeDiag::note_assigned] = E.getCustomDiagID(DiagnosticsEngine::Note, "assigned here");
+        WarningIds[LifetimeDiag::note_moved] = E.getCustomDiagID(DiagnosticsEngine::Note, "moved here");
         WarningIds[LifetimeDiag::note_here] = E.getCustomDiagID(DiagnosticsEngine::Note, "here");
     }
 

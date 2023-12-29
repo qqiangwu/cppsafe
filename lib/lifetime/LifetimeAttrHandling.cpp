@@ -343,6 +343,8 @@ private:
                     }
                     ContractAttr->PrePSets.emplace(DerefThis, DerefThisPSet);
                     addUnannotated(Locations.Input, IOAttr, DerefThis);
+                } else {
+
                 }
             }
         }

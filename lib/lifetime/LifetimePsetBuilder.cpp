@@ -9,6 +9,9 @@
 
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
 #include "cppsafe/lifetime/Lifetime.h"
+#include "cppsafe/lifetime/LifetimePset.h"
+#include "cppsafe/lifetime/LifetimeTypeCategory.h"
+#include "cppsafe/lifetime/contract/CallVisitor.h"
 #include "cppsafe/util/type.h"
 
 #include "clang/AST/Attr.h"
@@ -17,7 +20,12 @@
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Lex/Lexer.h"
+#include <clang/AST/Decl.h>
+#include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
+#include <clang/Basic/SourceLocation.h>
+#include <llvm/Support/Casting.h>
+#include <llvm/Support/raw_ostream.h>
 
 namespace clang::lifetime {
 
@@ -29,12 +37,6 @@ namespace {
 #else
 #define DBG(x)
 #endif
-
-bool hasPSet(const Expr* E)
-{
-    auto TC = classifyTypeCategory(E->getType());
-    return E->isLValue() || TC == TypeCategory::Pointer || TC == TypeCategory::Owner;
-}
 
 bool isPointer(const Expr* E)
 {
@@ -54,8 +56,7 @@ bool isPointer(const Expr* E)
 /// For every expression whose Type is a Pointer or an Owner,
 /// we also track the pset (points-to set), e.g.
 ///  pset(&v) = {v}
-class PSetsBuilder : public ConstStmtVisitor<PSetsBuilder, void> {
-
+class PSetsBuilder final : public ConstStmtVisitor<PSetsBuilder, void>, public PSBuilder {
     const FunctionDecl* AnalyzedFD;
     LifetimeReporterBase& Reporter;
     ASTContext& ASTCtxt;
@@ -583,285 +584,23 @@ public:
         }
     }
 
-    template <typename PC, typename TC>
-    static void forEachArgParamPair(const CallExpr* CE, const PC& ParamCallback, const TC& ThisCallback)
-    {
-        const FunctionDecl* FD = CE->getDirectCallee();
-        assert(FD);
-
-        ArrayRef Args(CE->getArgs(), CE->getNumArgs());
-
-        const Expr* ObjectArg = nullptr;
-        if (isa<CXXOperatorCallExpr>(CE) && FD->isCXXInstanceMember()) {
-            ObjectArg = Args[0];
-            Args = Args.slice(1);
-        } else if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(CE)) {
-            ObjectArg = MCE->getImplicitObjectArgument();
-        }
-
-        unsigned Pos = 0;
-        for (const Expr* Arg : Args) {
-            // This can happen for c style var arg functions
-            if (Pos >= FD->getNumParams()) {
-                ParamCallback(nullptr, Arg, Pos);
-            } else {
-                const ParmVarDecl* PVD = FD->getParamDecl(Pos);
-                ParamCallback(PVD, Arg, Pos);
-            }
-            ++Pos;
-        }
-        if (ObjectArg) {
-            const CXXRecordDecl* RD = cast<CXXMethodDecl>(FD)->getParent();
-            ThisCallback(Variable::thisPointer(RD), RD, ObjectArg);
-        }
-    }
-
-    // In the contracts every PSets are expressed in terms of the ParmVarDecls.
-    // We need to translate this to the PSets of the arguments so we can check
-    // substitutability.
-    void bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const CallExpr* CE, bool Checking = true)
-    {
-        // The sources of null are the actuals, not the formals.
-        if (!Checking) {
-            for (auto& VarToPSet : Fill) {
-                VarToPSet.second.removeNull();
-            }
-        }
-
-        auto BindTwoDerefLevels = [this, &Lookup, Checking](Variable V, const PSet& PS, PSetsMap::value_type& Pair) {
-            Pair.second.bind(V, PS, Checking);
-            if (!Lookup.contains(V)) {
-                return;
-            }
-            V.deref();
-            Pair.second.bind(V, derefPSet(PS), Checking);
-        };
-
-        auto ReturnIt = Fill.find(Variable::returnVal());
-        forEachArgParamPair(
-            CE,
-            [&](const ParmVarDecl* PVD, const Expr* Arg, int) {
-                if (!PVD) {
-                    // PVD is a c-style vararg argument.
-                    return;
-                }
-                PSet ArgPS = getPSet(Arg, /*AllowNonExisting=*/true);
-                if (ArgPS.isUnknown()) {
-                    return;
-                }
-                Variable V = PVD;
-                V.deref();
-                for (auto& VarToPSet : Fill) {
-                    BindTwoDerefLevels(V, ArgPS, VarToPSet);
-                }
-                // Do the binding for the return value.
-                if (ReturnIt != Fill.end()) {
-                    BindTwoDerefLevels(V, ArgPS, *ReturnIt);
-                }
-            },
-            [&](Variable V, const CXXRecordDecl*, const Expr* ObjExpr) {
-                // Do the binding for this and *this
-                V.deref();
-                for (auto& VarToPSet : Fill) {
-                    BindTwoDerefLevels(V, getPSet(ObjExpr), VarToPSet);
-                }
-            });
-    }
-
     /// Evaluates the CallExpr for effects on psets.
     /// When a non-const pointer to pointer or reference to pointer is passed
     /// into a function, it's pointee's are invalidated.
     /// Returns true if CallExpr was handled.
     void VisitCallExpr(const CallExpr* CallE)
     {
-        // Default return value, will be overwritten if it makes sense.
-        setPSet(CallE, {});
-
-        if (isa<CXXPseudoDestructorExpr>(CallE->getCallee()) || handleDebugFunctions(CallE)) {
+        if (handleDebugFunctions(CallE)) {
             return;
         }
 
-        // TODO: function pointers are not handled. We need to get the contracts
-        //       from the declaration of the function pointer somehow.
-        const auto* Callee = CallE->getDirectCallee();
-        if (!Callee) {
-            return;
-        }
-
-        /// Special case for assignment of Pointer into Pointer: copy pset
-        if (const auto* OC = dyn_cast<CXXOperatorCallExpr>(CallE)) {
-            if (OC->getOperator() == OO_Equal && OC->getNumArgs() == 2 && isPointer(OC->getArg(0))
-                && isPointer(OC->getArg(1))) {
-                SourceRange Range = CallE->getSourceRange();
-                PSet RHS = getPSet(getPSet(OC->getArg(1)));
-                RHS = handlePointerAssign(OC->getArg(0)->getType(), RHS, Range);
-                setPSet(getPSet(OC->getArg(0)), RHS, Range);
-                setPSet(CallE, RHS);
-                return;
-            }
-        }
-
-        // Get preconditions.
-        PSetsMap PreConditions;
-        getLifetimeContracts(PreConditions, Callee, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/true);
-        bindArguments(PreConditions, PreConditions, CallE);
-
-        // Check preconditions. We might have them 2 levels deep.
-        forEachArgParamPair(
-            CallE,
-            [&](const ParmVarDecl* PVD, const Expr* Arg, int) {
-                PSet ArgPS = getPSet(Arg, /*AllowNonExisting=*/true);
-                if (ArgPS.isUnknown()) {
-                    return;
-                }
-                if (!PVD) {
-                    // PVD is a c-style vararg argument
-                    if (ArgPS.containsInvalid()) {
-                        if (!ArgPS.shouldBeFilteredBasedOnNotes(Reporter) || ArgPS.isInvalid()) {
-                            Reporter.warnNullDangling(
-                                WarnType::Dangling, Arg->getSourceRange(), ValueSource::Param, "", !ArgPS.isInvalid());
-                            ArgPS.explainWhyInvalid(Reporter);
-                        }
-                        setPSet(Arg, PSet()); // Suppress further warnings.
-                    }
-                    return;
-                }
-                if (PreConditions.contains(PVD)
-                    && !ArgPS.checkSubstitutableFor(PreConditions[PVD], Arg->getSourceRange(), Reporter)) {
-                    setPSet(Arg, PSet()); // Suppress further warnings.
-                }
-                Variable V = PVD;
-                V.deref();
-                if (PreConditions.contains(V)) {
-                    derefPSet(ArgPS).checkSubstitutableFor(PreConditions[V], Arg->getSourceRange(), Reporter);
-                }
-            },
-            [&](Variable V, const RecordDecl*, const Expr* ObjExpr) {
-                PSet ArgPS = getPSet(ObjExpr);
-                if (PreConditions.contains(V)
-                    && !ArgPS.checkSubstitutableFor(PreConditions[V], ObjExpr->getSourceRange(), Reporter)) {
-                    setPSet(ObjExpr, PSet()); // Suppress further warnings.
-                }
-                V.deref();
-                if (PreConditions.contains(V)) {
-                    derefPSet(ArgPS).checkSubstitutableFor(PreConditions[V], ObjExpr->getSourceRange(), Reporter);
-                }
-            });
-
-        PSetsMap PostConditions;
-        getLifetimeContracts(PostConditions, Callee, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
-        bindArguments(PostConditions, PreConditions, CallE, /*Checking=*/false);
-        // PSets might become empty during the argument binding.
-        // E.g.: when the pset(null) is bind to a non-null pset.
-        // Also remove null outputs for non-null types.
-        for (auto& Pair : PostConditions) {
-            // TODO: Currently getType() fails when isReturnVal() is true because the
-            // Variable does not store the type of the ReturnVal.
-            QualType OutputType = Pair.first.isReturnVal() ? Callee->getReturnType() : Pair.first.getType();
-            if (!isNullableType(OutputType)) {
-                Pair.second.removeNull();
-            }
-            if (Pair.second.isUnknown()) {
-                Pair.second.addStatic();
-            }
-        }
-
-#if 0
-    for (auto Pair : PreConditions)
-      llvm::errs() << "Pre:" << Pair.first.getName() << " -> "
-                   << Pair.second.str() << "\n";
-    for (auto Pair : PostConditions)
-      llvm::errs() << "Post" << Pair.first.getName() << " -> "
-                   << Pair.second.str() << "\n";
-#endif
-
-        // Invalidate owners taken by Pointer to non-const.
-        forEachArgParamPair(
-            CallE,
-            [&](const ParmVarDecl* PVD, const Expr* Arg, int Pos) {
-                if (!PVD) { // C-style vararg argument.
-                    return;
-                }
-                QualType Pointee = getPointeeType(PVD->getType());
-                if (Pointee.isNull()) {
-                    return;
-                }
-                if (classifyTypeCategory(Pointee) != TypeCategory::Owner || isLifetimeConst(Callee, Pointee, Pos)) {
-                    return;
-                }
-                PSet ArgPS = getPSet(Arg);
-                for (const Variable& V : ArgPS.vars()) {
-                    invalidateOwner(V, InvalidationReason::Modified(Arg->getSourceRange(), CurrentBlock));
-                }
-            },
-            [&](const Variable&, const RecordDecl* RD, const Expr* ObjExpr) {
-                const auto* RT = RD->getTypeForDecl();
-                if (classifyTypeCategory(RT) != TypeCategory::Owner || isLifetimeConst(Callee, QualType(RT, 0), -1)) {
-                    return;
-                }
-                PSet ArgPs = getPSet(ObjExpr);
-                for (const Variable& V : ArgPs.vars()) {
-                    invalidateOwner(V, InvalidationReason::Modified(ObjExpr->getSourceRange(), CurrentBlock));
-                }
-            });
-
-        // Bind Pointer return value.
-        auto TC = classifyTypeCategory(Callee->getReturnType());
-        if (TC == TypeCategory::Pointer) {
-            setPSet(CallE, PostConditions[Variable::returnVal()]);
-        }
-
-        // Bind output arguments.
-        forEachArgParamPair(
-            CallE,
-            [&](const ParmVarDecl* PVD, const Expr* Arg, int) {
-                if (!PVD) {
-                    // C-style vararg argument.
-                    if (!hasPSet(Arg)) {
-                        return;
-                    }
-                    PSet ArgPS = getPSet(Arg);
-                    if (ArgPS.vars().empty()) {
-                        return;
-                    }
-                    setPSet(ArgPS, PSet::staticVar(false), Arg->getSourceRange());
-                    return;
-                }
-                Variable V = PVD;
-                V.deref();
-                if (PostConditions.contains(V)) {
-                    setPSet(getPSet(Arg), PostConditions[V], Arg->getSourceRange());
-                }
-            },
-            [&](Variable V, const RecordDecl*, const Expr* ObjExpr) {
-                V.deref();
-                if (PostConditions.contains(V)) {
-                    setPSet(getPSet(ObjExpr), PostConditions[V], ObjExpr->getSourceRange());
-                }
-            });
-
-        // Lambdas are not supported yet properly. Invalidate the captured pointers
-        // so we do not get false positives with uninitialized values.
-        if (const auto* M = dyn_cast<CXXMethodDecl>(Callee)) {
-            const CXXRecordDecl* RD = M->getParent();
-            if (!RD->isLambda()) {
-                return;
-            }
-            for (const LambdaCapture& Capture : RD->captures()) {
-                if (Capture.getCaptureKind() != LCK_ByRef || !Capture.capturesVariable()) {
-                    continue;
-                }
-                const VarDecl* VD = Capture.getCapturedVar()->getPotentiallyDecomposedVarDecl();
-                if (VD && classifyTypeCategory(VD->getType()) == TypeCategory::Pointer) {
-                    setPSet(PSet::singleton(VD), {}, Callee->getSourceRange());
-                }
-            }
-        }
+        CallVisitor C(*this, Reporter, CurrentBlock);
+        C.run(CallE, ASTCtxt, IsConvertible);
     }
 
     bool checkPSetValidity(const PSet& PS, SourceRange Range) const;
 
-    void invalidateVar(const Variable& V, const InvalidationReason& Reason)
+    void invalidateVar(const Variable& V, const InvalidationReason& Reason) override
     {
         for (const auto& I : PMap) {
             const PSet& PS = I.second;
@@ -876,7 +615,7 @@ public:
         }
     }
 
-    void invalidateOwner(const Variable& V, const InvalidationReason& Reason)
+    void invalidateOwner(const Variable& V, const InvalidationReason& Reason) override
     {
         for (const auto& I : PMap) {
             const auto& Var = I.first;
@@ -928,9 +667,9 @@ public:
         }
     }
 
-    PSet getPSet(const Variable& P) const;
+    PSet getPSet(const Variable& P) const override;
 
-    PSet getPSet(const Expr* E, bool AllowNonExisting = false) const
+    PSet getPSet(const Expr* E, bool AllowNonExisting = false) const override
     {
         E = ignoreTransparentExprs(E);
         if (E->isLValue()) {
@@ -962,7 +701,7 @@ public:
         }
     }
 
-    PSet getPSet(const PSet& P) const
+    PSet getPSet(const PSet& P) const override
     {
         PSet Ret;
         if (P.containsInvalid()) {
@@ -979,7 +718,7 @@ public:
         return Ret;
     }
 
-    void setPSet(const Expr* E, const PSet& PS)
+    void setPSet(const Expr* E, const PSet& PS) override
     {
         if (E->isLValue()) {
             DBG("Set RefersTo[" << E->getStmtClassName() << "] = " << PS.str() << "\n");
@@ -989,12 +728,12 @@ public:
             PSetsOfExpr[E] = PS;
         }
     }
-    void setPSet(const PSet& LHS, PSet RHS, SourceRange Range);
-    PSet derefPSet(const PSet& P) const;
+    void setPSet(const PSet& LHS, PSet RHS, SourceRange Range) override;
+    PSet derefPSet(const PSet& P) const override;
 
     bool handleDebugFunctions(const CallExpr* CallE) const;
 
-    PSet handlePointerAssign(QualType LHS, PSet RHS, SourceRange Range, bool AddReason = true) const
+    PSet handlePointerAssign(QualType LHS, PSet RHS, SourceRange Range, bool AddReason = true) const override
     {
         if (RHS.containsNull()) {
             if (AddReason) {
@@ -1035,7 +774,10 @@ public:
             setPSet(PSet::singleton(VD), PSet::singleton(VD, 1), Range);
             break;
         }
-        default:;
+        default:
+            // TODO: now for all non-Pointer, set pset(v) = {v}
+            setPSet(PSet::singleton(VD), PSet::singleton(VD), Range);
+            break;
         }
     }
 
