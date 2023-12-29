@@ -13,8 +13,8 @@
 #include "cppsafe/lifetime/Lifetime.h"
 #include "clang/AST/Type.h"
 
-namespace clang {
-namespace lifetime {
+namespace clang::lifetime {
+
 struct TypeClassification {
     TypeCategory TC;
     /// Called DerefType in the paper. Valid when TC is Owner or Pointer.
@@ -32,6 +32,8 @@ struct TypeClassification {
     {
         assert(!PointeeType.isNull());
     }
+
+    bool isIndirection() const { return TC == TypeCategory::Pointer || TC == TypeCategory::Owner; }
 
     std::string str() const
     {
@@ -71,7 +73,6 @@ bool isNullableType(QualType QT);
 inline QualType getPointeeType(QualType QT) { return classifyTypeCategory(QT).PointeeType; }
 
 bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum);
-} // namespace lifetime
-} // namespace clang
+} // namespace clang::lifetime
 
 #endif // LLVM_CLANG_ANALYSIS_ANALYSES_LIFETIMETYPECATEGORY_H

@@ -11,6 +11,7 @@
 #include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
+#include "cppsafe/lifetime/LifetimeTypeCategory.h"
 #include "cppsafe/util/type.h"
 
 #include <clang/AST/Attr.h>
@@ -218,10 +219,24 @@ public:
     void fillPSetsForDecl(LifetimeContractAttr* ContractAttr) const
     {
         // Fill the lifetime_in/lifetime_out annotations.
-        ParamDerivedLocations Locations;
-        // TODO
-        // auto* IOAttr = FD->getAttr<LifetimeIOAttr>();
         LifetimeIOAttr* IOAttr = nullptr;
+        ParamDerivedLocations Locations = queryLifetimeIO(IOAttr);
+
+        fillPreConditions(ContractAttr, IOAttr, Locations);
+        fillPostConditions(ContractAttr, Locations);
+    }
+
+private:
+    struct ParamDerivedLocations {
+        std::vector<ContractVariable> InputWeak;
+        std::vector<ContractVariable> Input;
+        std::vector<ContractVariable> Output;
+    };
+
+    ParamDerivedLocations queryLifetimeIO(LifetimeIOAttr* IOAttr) const
+    {
+        ParamDerivedLocations Locations;
+
         if (IOAttr && IOAttr->InVars.empty() && IOAttr->OutVars.empty()) {
             for (const Expr* E : IOAttr->InLocExprs) {
                 SourceRange Range = fillIOVarsFromExpr(E, IOAttr->InVars);
@@ -243,12 +258,18 @@ public:
             }
         }
 
+        return Locations;
+    }
+
+    void fillPreConditions(
+        LifetimeContractAttr* ContractAttr, LifetimeIOAttr* IOAttr, ParamDerivedLocations& Locations) const
+    {
         // Fill default preconditions and collect data for
         // computing default postconditions.
         for (const ParmVarDecl* PVD : FD->parameters()) {
             QualType ParamType = PVD->getType();
-            TypeCategory TC = classifyTypeCategory(ParamType);
-            if (TC != TypeCategory::Pointer && TC != TypeCategory::Owner) {
+            TypeClassification TC = classifyTypeCategory(ParamType);
+            if (!TC.isIndirection()) {
                 continue;
             }
 
@@ -309,8 +330,8 @@ public:
                 ContractAttr->PrePSets.emplace(ContractVariable(RD), ThisPSet);
                 addUnannotated(Locations.Input, IOAttr, ContractVariable(RD));
                 QualType ClassTy = MD->getThisType()->getPointeeType();
-                TypeCategory TC = classifyTypeCategory(ClassTy);
-                if (TC == TypeCategory::Pointer || TC == TypeCategory::Owner) {
+                TypeClassification TC = classifyTypeCategory(ClassTy);
+                if (TC.isIndirection()) {
                     ContractPSet DerefThisPSet({ ContractVariable(RD).deref(2) });
                     auto OO = MD->getOverloadedOperator();
                     if (OO != OverloadedOperatorKind::OO_Star && OO != OverloadedOperatorKind::OO_Arrow
@@ -333,7 +354,10 @@ public:
                 Reporter.warnUnsupportedExpr(Range);
             }
         }
+    }
 
+    void fillPostConditions(LifetimeContractAttr* ContractAttr, ParamDerivedLocations& Locations) const
+    {
         // Compute default postconditions.
         auto ComputeOutput = [&](QualType OutputType) {
             ContractPSet Ret;
@@ -374,7 +398,6 @@ public:
         }
     }
 
-private:
     bool canAssign(QualType From, QualType To) const
     {
         QualType FromPointee = getPointeeType(From);
@@ -397,12 +420,6 @@ private:
         }
         return Variable(CV, FD).getType();
     }
-
-    struct ParamDerivedLocations {
-        std::vector<ContractVariable> InputWeak;
-        std::vector<ContractVariable> Input;
-        std::vector<ContractVariable> Output;
-    };
 
     static bool isInputAnnotated(const LifetimeIOAttr* Attr, const ContractVariable& Var)
     {

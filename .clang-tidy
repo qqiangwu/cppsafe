@@ -163,7 +163,6 @@ Checks:
   cppcoreguidelines-avoid-const-or-ref-data-members
   cppcoreguidelines-avoid-do-while
   cppcoreguidelines-avoid-goto
-  cppcoreguidelines-avoid-magic-numbers
   cppcoreguidelines-avoid-non-const-global-variables
   cppcoreguidelines-avoid-reference-coroutine-parameters
   cppcoreguidelines-c-copy-assignment-signature
@@ -339,3 +338,4 @@ CheckOptions:
 # -readability-identifier-length
 # -misc-use-anonymous-namespace
 # -misc-no-recursion
+# -cppcoreguidelines-avoid-magic-numbers

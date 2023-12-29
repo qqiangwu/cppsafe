@@ -10,8 +10,11 @@
 #ifndef LLVM_CLANG_ANALYSIS_ANALYSES_LIFETIME_H
 #define LLVM_CLANG_ANALYSIS_ANALYSES_LIFETIME_H
 
-#include "clang/Analysis/Analyses/Dominators.h"
-#include "clang/Basic/SourceLocation.h"
+#include "cppsafe/Options.h"
+#include "cppsafe/util/type.h"
+
+#include <clang/Analysis/Analyses/Dominators.h>
+#include <clang/Basic/SourceLocation.h>
 
 #include <string>
 
@@ -58,7 +61,14 @@ enum class ValueSource { Param, Return, OutputParam };
 class LifetimeReporterBase {
 public:
     using IsCleaningBlockTy = std::function<bool(const CFGBlock& Block, const Variable*)>;
+
+    LifetimeReporterBase() = default;
+
     virtual ~LifetimeReporterBase() = default;
+
+    DISALLOW_COPY_AND_MOVE(LifetimeReporterBase);
+
+    virtual const cppsafe::CppsafeOptions& getOptions() const = 0;
 
     virtual bool shouldFilterWarnings() const { return false; }
     void initializeFiltering(CFG* Cfg, IsCleaningBlockTy IsCleaningBlock);
@@ -88,7 +98,7 @@ private:
     CFGPostDomTree PostDom;
     CFGDomTree Dom;
     const CFGBlock* Current = nullptr;
-    const CFG* Cfg;
+    const CFG* Cfg = nullptr;
 };
 
 bool isNoopBlock(const CFGBlock& B);

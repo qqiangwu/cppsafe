@@ -1,4 +1,5 @@
 #include "cppsafe/AstConsumer.h"
+#include "cppsafe/Options.h"
 #include "cppsafe/lifetime/Lifetime.h"
 
 #include <clang/AST/Type.h>
@@ -51,7 +52,7 @@ enum LifetimeDiag {
     note_here,
 };
 
-const std::array Warnings{
+const std::array Warnings {
     LifetimeDiag::warn_deref_dangling,
     LifetimeDiag::warn_deref_nullptr,
     LifetimeDiag::warn_assign_nullptr,
@@ -59,7 +60,7 @@ const std::array Warnings{
     LifetimeDiag::warn_dangling,
 };
 
-const std::array Notes{
+const std::array Notes {
     LifetimeDiag::note_never_initialized,
     LifetimeDiag::note_temporary_destroyed,
     LifetimeDiag::note_dereferenced,
@@ -74,7 +75,7 @@ const std::array Notes{
 
 class Reporter : public LifetimeReporterBase {
     Sema& S;
-    bool FilterWarnings;
+    cppsafe::CppsafeOptions Options;
     std::set<SourceLocation> WarningLocs;
     bool IgnoreCurrentWarning = false;
     std::map<LifetimeDiag, unsigned int> WarningIds;
@@ -87,9 +88,9 @@ class Reporter : public LifetimeReporterBase {
     }
 
 public:
-    Reporter(Sema& S, bool FilterWarnings)
+    Reporter(Sema& S, const cppsafe::CppsafeOptions& Opts)
         : S(S)
-        , FilterWarnings(FilterWarnings)
+        , Options(Opts)
     {
         auto& E = S.getDiagnostics();
 
@@ -136,7 +137,8 @@ public:
             = E.getCustomDiagID(DiagnosticsEngine::Note, "temporary was destroyed at the end of the full expression");
         WarningIds[LifetimeDiag::note_pointer_arithmetic]
             = E.getCustomDiagID(DiagnosticsEngine::Note, "pointer arithmetic is not allowed");
-        WarningIds[LifetimeDiag::note_dereferenced] = E.getCustomDiagID(DiagnosticsEngine::Note, "was dereferenced here");
+        WarningIds[LifetimeDiag::note_dereferenced]
+            = E.getCustomDiagID(DiagnosticsEngine::Note, "was dereferenced here");
         WarningIds[LifetimeDiag::note_null_here] = E.getCustomDiagID(DiagnosticsEngine::Note, "became nullptr here");
         WarningIds[LifetimeDiag::note_null_reason_parameter] = E.getCustomDiagID(DiagnosticsEngine::Note,
             "the parameter is assumed to be potentially null. Consider using gsl::not_null<>, a reference instead of a "
@@ -153,7 +155,9 @@ public:
         WarningIds[LifetimeDiag::note_here] = E.getCustomDiagID(DiagnosticsEngine::Note, "here");
     }
 
-    bool shouldFilterWarnings() const final { return FilterWarnings; }
+    const cppsafe::CppsafeOptions& getOptions() const override { return Options; }
+
+    bool shouldFilterWarnings() const final { return false; }
 
     void warnPsetOfGlobal(SourceRange Range, StringRef VariableName, std::string ActualPset) final
     {
@@ -223,6 +227,7 @@ public:
             S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Notes.at((int)T)]) << Range;
         }
     }
+
     void debugPset(SourceRange Range, StringRef Variable, std::string Pset) final
     {
         S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_pset]) << Variable << Pset << Range;
@@ -256,7 +261,7 @@ void AstConsumer::run(const clang::FunctionDecl* Fn)
         return !ICS.isFailure();
     };
 
-    lifetime::Reporter Reporter(*Sema, false);
+    lifetime::Reporter Reporter(*Sema, Options);
     lifetime::runAnalysis(Fn, Sema->getASTContext(), Reporter, IsConvertible);
 }
 

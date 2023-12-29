@@ -3,8 +3,7 @@
 namespace cppsafe {
 
 struct CppsafeOptions {
-    bool CheckUseAfterMove = false;
-    bool CheckFunctions = false;
+    bool LifetimeMove = false;
 };
 
 }

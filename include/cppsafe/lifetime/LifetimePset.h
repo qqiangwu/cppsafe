@@ -521,8 +521,12 @@ public:
 
         // If 'O' includes static and no x or o, then 'this' must include static and
         // no x or o.
-        if (!ContainsStatic && O.ContainsStatic) {
-            return false;
+        if (O.ContainsStatic) {
+            // here: 'this' is not Invalid, if 'this' is null, O must contains null, checked before
+            if (!ContainsStatic && !Vars.empty()) {
+                Reporter.warnWrongPset(Range, Source, SourceName, str(), O.str());
+                return false;
+            }
         }
 
         // If 'this' includes o'', then 'O' must include o'' or o'. (etc.)
