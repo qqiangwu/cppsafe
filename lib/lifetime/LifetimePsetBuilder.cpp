@@ -1112,8 +1112,16 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
         if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
             E = UO->getSubExpr();
         }
-        const auto* FD = dyn_cast<FunctionDecl>(cast<DeclRefExpr>(E)->getDecl());
-        FD = FD->getCanonicalDecl();
+        const auto* FD = std::invoke([E]() -> const FunctionDecl* {
+            if (const auto* CE = dyn_cast<CallExpr>(E)) {
+                return CE->getDirectCallee();
+            }
+            if (const auto* Tmp = dyn_cast<CXXTemporaryObjectExpr>(E)) {
+                return Tmp->getConstructor();
+            }
+
+            return dyn_cast<FunctionDecl>(cast<DeclRefExpr>(E)->getDecl());
+        })->getCanonicalDecl();
 
         PSetsMap PreConditions;
         getLifetimeContracts(PreConditions, FD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/true);
