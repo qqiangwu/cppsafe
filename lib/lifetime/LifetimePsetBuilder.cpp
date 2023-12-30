@@ -494,8 +494,13 @@ public:
     void VisitCXXConstructExpr(const CXXConstructExpr* E)
     {
         if (!isPointer(E)) {
-            // Constructing a temporary owner/value
+            // Default, will be overwritten if it makes sense.
             setPSet(E, {});
+
+            // Constructing a temporary owner/value
+            CallVisitor C(*this, Reporter, CurrentBlock);
+            C.enforcePreAndPostConditions(E, ASTCtxt, IsConvertible);
+
             return;
         }
 

@@ -1,23 +1,48 @@
 #include "cppsafe/lifetime/contract/CallVisitor.h"
+#include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/LifetimePset.h"
-#include "cppsafe/lifetime/LifetimeTypeCategory.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
+#include "cppsafe/lifetime/LifetimeTypeCategory.h"
 
 #include <clang/AST/Decl.h>
+#include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
+#include <clang/AST/Type.h>
+#include <clang/Basic/LLVM.h>
+#include <clang/Basic/Lambda.h>
+#include <clang/Basic/OperatorKinds.h>
+#include <clang/Basic/SourceLocation.h>
+
+#include <cassert>
 
 namespace clang::lifetime {
 
 namespace {
 
-template <typename PC, typename TC>
-void forEachArgParamPair(const CallExpr* CE, const PC& ParamCallback, const TC& ThisCallback)
+const FunctionDecl* getDecl(const Expr* CE)
 {
-    const FunctionDecl* FD = CE->getDirectCallee();
+    if (const auto* CallE = dyn_cast<CallExpr>(CE)) {
+        return CallE->getDirectCallee();
+    }
+
+    return cast<CXXConstructExpr>(CE)->getConstructor();
+}
+
+template <typename PC, typename TC>
+void forEachArgParamPair(const Expr* CE, const PC& ParamCallback, const TC& ThisCallback)
+{
+    const FunctionDecl* FD = getDecl(CE);
     assert(FD);
 
-    ArrayRef Args(CE->getArgs(), CE->getNumArgs());
+    ArrayRef Args = std::invoke([CE] {
+        if (const auto* CallE = dyn_cast<CallExpr>(CE)) {
+            return ArrayRef { CallE->getArgs(), CallE->getNumArgs() };
+        }
+
+        const auto* Ctor = cast<CXXConstructExpr>(CE);
+        return ArrayRef { Ctor->getArgs(), Ctor->getNumArgs() };
+    });
 
     const Expr* ObjectArg = nullptr;
     if (isa<CXXOperatorCallExpr>(CE) && FD->isCXXInstanceMember()) {
@@ -74,6 +99,14 @@ void CallVisitor::run(const CallExpr* CallE, ASTContext& ASTCtxt, const IsConver
     // resets are done before processing the function call (§2.5) including preconditions
     tryResetPSet(CallE);
 
+    enforcePreAndPostConditions(CallE, ASTCtxt, IsConvertible);
+}
+
+void CallVisitor::enforcePreAndPostConditions(
+    const Expr* CallE, ASTContext& ASTCtxt, const IsConvertibleTy& IsConvertible)
+{
+    const auto* Callee = getDecl(CallE);
+
     // Get preconditions.
     PSetsMap PreConditions;
     getLifetimeContracts(PreConditions, Callee, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/true);
@@ -91,7 +124,7 @@ void CallVisitor::run(const CallExpr* CallE, ASTContext& ASTCtxt, const IsConver
     for (auto& Pair : PostConditions) {
         // TODO: Currently getType() fails when isReturnVal() is true because the
         // Variable does not store the type of the ReturnVal.
-        QualType OutputType = Pair.first.isReturnVal() ? Callee->getReturnType() : Pair.first.getType();
+        const QualType OutputType = Pair.first.isReturnVal() ? Callee->getReturnType() : Pair.first.getType();
         if (!isNullableType(OutputType)) {
             Pair.second.removeNull();
         }
@@ -108,7 +141,7 @@ bool CallVisitor::handlePointerCopy(const CallExpr* CallE)
     if (const auto* OC = dyn_cast<CXXOperatorCallExpr>(CallE)) {
         if (OC->getOperator() == OO_Equal && OC->getNumArgs() == 2 && isPointer(OC->getArg(0))
             && isPointer(OC->getArg(1))) {
-            SourceRange Range = CallE->getSourceRange();
+            const SourceRange Range = CallE->getSourceRange();
             PSet RHS = Builder.getPSet(Builder.getPSet(OC->getArg(1)));
             RHS = Builder.handlePointerAssign(OC->getArg(0)->getType(), RHS, Range);
             Builder.setPSet(Builder.getPSet(OC->getArg(0)), RHS, Range);
@@ -159,7 +192,7 @@ const Expr* CallVisitor::getObjectNeedReset(const CallExpr* CallE)
 // In the contracts every PSets are expressed in terms of the ParmVarDecls.
 // We need to translate this to the PSets of the arguments so we can check
 // substitutability.
-void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const CallExpr* CE, bool Checking)
+void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Expr* CE, bool Checking)
 {
     // The sources of null are the actuals, not the formals.
     if (!Checking) {
@@ -185,7 +218,7 @@ void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Ca
                 // PVD is a c-style vararg argument.
                 return;
             }
-            PSet ArgPS = Builder.getPSet(Arg, /*AllowNonExisting=*/true);
+            const PSet ArgPS = Builder.getPSet(Arg, /*AllowNonExisting=*/true);
             if (ArgPS.isUnknown()) {
                 return;
             }
@@ -208,7 +241,7 @@ void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Ca
         });
 }
 
-void CallVisitor::checkPreconditions(const CallExpr* CallE, PSetsMap& PreConditions)
+void CallVisitor::checkPreconditions(const Expr* CallE, PSetsMap& PreConditions)
 {
     // Check preconditions. We might have them 2 levels deep.
     forEachArgParamPair(
@@ -268,7 +301,7 @@ void CallVisitor::checkPreconditions(const CallExpr* CallE, PSetsMap& PreConditi
         });
 }
 
-void CallVisitor::enforcePostconditions(const CallExpr* CallE, const FunctionDecl* Callee, PSetsMap& PostConditions)
+void CallVisitor::enforcePostconditions(const Expr* CallE, const FunctionDecl* Callee, PSetsMap& PostConditions)
 {
     invalidateNonConstUse(CallE);
 
@@ -287,7 +320,7 @@ void CallVisitor::enforcePostconditions(const CallExpr* CallE, const FunctionDec
                 if (!hasPSet(Arg)) {
                     return;
                 }
-                PSet ArgPS = Builder.getPSet(Arg);
+                const PSet ArgPS = Builder.getPSet(Arg);
                 if (ArgPS.vars().empty()) {
                     return;
                 }
@@ -326,9 +359,9 @@ void CallVisitor::enforcePostconditions(const CallExpr* CallE, const FunctionDec
     }
 }
 
-void CallVisitor::invalidateNonConstUse(const CallExpr* CallE)
+void CallVisitor::invalidateNonConstUse(const Expr* CallE)
 {
-    const auto* Callee = CallE->getDirectCallee();
+    const auto* Callee = getDecl(CallE);
 
     // Invalidate owners taken by Pointer to non-const.
     forEachArgParamPair(
@@ -337,7 +370,7 @@ void CallVisitor::invalidateNonConstUse(const CallExpr* CallE)
             if (!PVD) { // C-style vararg argument.
                 return;
             }
-            QualType Pointee = getPointeeType(PVD->getType());
+            const QualType Pointee = getPointeeType(PVD->getType());
             if (Pointee.isNull()) {
                 return;
             }
@@ -365,7 +398,7 @@ void CallVisitor::invalidateVarOnNoConstUse(const Expr* Arg, const TypeClassific
     // TODO: callA(T&) -> callB(T&&), how to cope with this
     const bool IsMovedFrom = Arg->isXValue();
 
-    PSet ArgPS = Builder.getPSet(Arg);
+    const PSet ArgPS = Builder.getPSet(Arg);
     for (const Variable& V : ArgPS.vars()) {
         if (!IsMovedFrom) {
             Builder.invalidateOwner(V, InvalidationReason::Modified(Arg->getSourceRange(), CurrentBlock));

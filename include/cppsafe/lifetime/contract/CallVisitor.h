@@ -29,18 +29,21 @@ public:
 
     void run(const CallExpr* CallE, ASTContext& ASTCtxt, const IsConvertibleTy& IsConvertible);
 
+    // for constructors
+    void enforcePreAndPostConditions(const Expr* CallE, ASTContext& ASTCtxt, const IsConvertibleTy& IsConvertible);
+
 private:
     bool handlePointerCopy(const CallExpr* CallE);
 
     void tryResetPSet(const CallExpr* CallE);
     const Expr* getObjectNeedReset(const CallExpr* CallE);
 
-    void bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const CallExpr* CE, bool Checking = true);
+    void bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Expr* CE, bool Checking = true);
 
-    void checkPreconditions(const CallExpr* CallE, PSetsMap& PreConditions);
-    void enforcePostconditions(const CallExpr* CallE, const FunctionDecl* Callee, PSetsMap& PostConditions);
+    void checkPreconditions(const Expr* CallE, PSetsMap& PreConditions);
+    void enforcePostconditions(const Expr* CallE, const FunctionDecl* Callee, PSetsMap& PostConditions);
 
-    void invalidateNonConstUse(const CallExpr* CallE);
+    void invalidateNonConstUse(const Expr* CallE);
     void invalidateVarOnNoConstUse(const Expr* Arg, const TypeClassification& TC);
     void checkUseAfterFree(const PSetsMap& PreConditions, const ParmVarDecl* PVD, const Expr* Arg);
     bool checkUseAfterFree(const Type* Ty, const PSet& P, SourceRange Range);
