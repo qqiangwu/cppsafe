@@ -321,7 +321,9 @@ private:
                 break;
             }
         }
+
         // This points to deref this and this considered as input.
+        // If *this is an indirection, then *this is considered as input too
         if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
             if (MD->isInstance()) {
                 const auto* RD = dyn_cast<CXXRecordDecl>(MD->getParent());
@@ -343,8 +345,6 @@ private:
                     }
                     ContractAttr->PrePSets.emplace(DerefThis, DerefThisPSet);
                     addUnannotated(Locations.Input, IOAttr, DerefThis);
-                } else {
-
                 }
             }
         }

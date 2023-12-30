@@ -34,3 +34,21 @@ __lifetime_contracts(&Foo);
 // note a return value is required to make semantics check pass
 __lifetime_contracts(Dummy{}.Foo(nullptr));
 ```
+
+# Annotations
+The following annotations are supported now
+
+## gsl::lifetime_const
++ ```[[clang::annotate("gsl::lifetime_const")]]```
++ put it after parameter name or before function signature to make *this lifetime_const
+
+```C++
+struct [[gsl::Owner(int)]] Dummy
+{
+    int* Get();
+
+    [[clang::annotate("gsl::lifetime_const")]] void Foo();
+};
+
+void Foo(Dummy& p [[clang::annotate("gsl::lifetime_const")]]);
+```

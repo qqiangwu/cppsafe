@@ -8,9 +8,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
-#include "clang/AST/Attr.h"
-#include "clang/AST/DeclCXX.h"
-#include "clang/AST/DeclTemplate.h"
+
+#include <clang/AST/Attr.h>
+#include <clang/AST/DeclCXX.h>
+#include <clang/AST/DeclTemplate.h>
+#include <clang/AST/Attrs.inc>
 
 #include <map>
 #include <set>
@@ -230,14 +232,20 @@ static TypeClassification classifyTypeCategoryImpl(const Type* T)
     llvm::errs() << "  DerefType: " << Pointee.getAsString() << "\n";
 #endif
 
-    if (R->hasAttr<OwnerAttr>()) {
+    if (const auto* A = R->getAttr<OwnerAttr>()) {
+        if (A->getDerefTypeLoc()) {
+            Pointee = A->getDerefType();
+        }
         if (Pointee.isNull()) {
             Pointee = R->getASTContext().VoidTy;
         }
         return { TypeCategory::Owner, Pointee };
     }
 
-    if (R->hasAttr<PointerAttr>()) {
+    if (const auto* A = R->getAttr<PointerAttr>()) {
+        if (A->getDerefTypeLoc()) {
+            Pointee = A->getDerefType();
+        }
         if (Pointee.isNull()) {
             Pointee = R->getASTContext().VoidTy;
         }
@@ -364,7 +372,7 @@ static QualType getPointeeType(const CXXRecordDecl* R)
 {
     assert(R);
 
-    for (auto *D : R->decls()) {
+    for (auto* D : R->decls()) {
         if (const auto* TypeDef = dyn_cast<TypedefNameDecl>(D)) {
             if (TypeDef->getName() == "value_type") {
                 return TypeDef->getUnderlyingType().getCanonicalType();
@@ -485,6 +493,15 @@ static QualType getPointeeType(const Type* T)
     return P;
 }
 
+static bool isAnnotatedLifetimeConst(const Decl* D)
+{
+    if (const auto* A = D->getAttr<AnnotateAttr>()) {
+        return A->getAnnotation() == "gsl::lifetime_const";
+    }
+
+    return false;
+}
+
 bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
 {
     // Until annotations are widespread, STL specific lifetimeconst
@@ -503,16 +520,15 @@ bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
         if (static_cast<size_t>(ArgNum) >= FD->param_size()) {
             return false;
         }
-        // auto Param = FD->parameters()[ArgNum];
-        //  TODO
-        // return Pointee.isConstQualified() || Param->hasAttr<LifetimeconstAttr>();
-        return Pointee.isConstQualified();
+
+        const auto* Param = FD->parameters()[ArgNum];
+        return Pointee.isConstQualified() || isAnnotatedLifetimeConst(Param);
     }
 
     assert(ArgNum == -1);
-    // TODO
-    // if (FD->hasAttr<LifetimeconstAttr>())
-    //   return true;
+    if (isAnnotatedLifetimeConst(FD)) {
+        return true;
+    }
 
     if (const auto* MD = dyn_cast<CXXMethodDecl>(FD)) {
         if (MD->isConst()) {
