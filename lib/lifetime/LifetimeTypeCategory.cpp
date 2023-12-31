@@ -8,11 +8,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
+#include "cppsafe/lifetime/contract/Annotation.h"
 
 #include <clang/AST/Attr.h>
+#include <clang/AST/Attrs.inc>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclTemplate.h>
-#include <clang/AST/Attrs.inc>
 
 #include <map>
 #include <set>
@@ -493,15 +494,6 @@ static QualType getPointeeType(const Type* T)
     return P;
 }
 
-static bool isAnnotatedLifetimeConst(const Decl* D)
-{
-    if (const auto* A = D->getAttr<AnnotateAttr>()) {
-        return A->getAnnotation() == "gsl::lifetime_const";
-    }
-
-    return false;
-}
-
 bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
 {
     // Until annotations are widespread, STL specific lifetimeconst
@@ -522,11 +514,11 @@ bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
         }
 
         const auto* Param = FD->parameters()[ArgNum];
-        return Pointee.isConstQualified() || isAnnotatedLifetimeConst(Param);
+        return Pointee.isConstQualified() || isLifetimeConst(Param);
     }
 
     assert(ArgNum == -1);
-    if (isAnnotatedLifetimeConst(FD)) {
+    if (isLifetimeConst(FD)) {
         return true;
     }
 

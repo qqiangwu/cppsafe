@@ -59,4 +59,18 @@ struct [[gsl::Owner(int)]] Dummy
 };
 
 void Foo(Dummy& p [[clang::annotate("gsl::lifetime_const")]]);
+void Foo([[clang::annotate("gsl::lifetime_const")]] Dummy& p);
+```
+
+## gsl::lifetime_in
++ ```[[clang::annotate("gsl::lifetime_in")]]```
++ mark a pointer to pointer or ref to pointer parameter as an input parameter
+
+```C++
+// by default, ps is viewed as an output parameter
+void Foo(int** p);
+void Foo2(int*& p);
+
+void Bar([[clang::annotate("gsl::lifetime_in")]] int** p);
+void Bar2([[clang::annotate("gsl::lifetime_in")]] int*& p);
 ```
