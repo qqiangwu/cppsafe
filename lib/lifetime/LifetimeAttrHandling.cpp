@@ -9,173 +9,26 @@
 
 #include "cppsafe/lifetime/Attr.h"
 #include "cppsafe/lifetime/Lifetime.h"
+#include "cppsafe/lifetime/LifetimeAttrData.h"
 #include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
+#include "cppsafe/lifetime/contract/Parser.h"
 #include "cppsafe/util/type.h"
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
+#include <clang/AST/DeclCXX.h>
+#include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
+#include <clang/Basic/SourceLocation.h>
 #include <gsl/narrow>
 
 #include <map>
+#include <vector>
 
 namespace clang::lifetime {
-
-// Easier access the attribute's representation.
-using AttrPointsToMap = std::map<ContractVariable, ContractPSet>;
-
-static const Expr* ignoreReturnValues(const Expr* E)
-{
-    const Expr* Original = nullptr;
-    do {
-        Original = E;
-        E = E->IgnoreImplicit();
-        if (const auto* CE = dyn_cast<CXXConstructExpr>(E)) {
-            E = CE->getArg(0);
-        }
-        if (const auto* MCE = dyn_cast<CXXMemberCallExpr>(E)) {
-            const auto* CD = dyn_cast_or_null<CXXConversionDecl>(MCE->getDirectCallee());
-            if (CD) {
-                E = MCE->getImplicitObjectArgument();
-            }
-        }
-    } while (E != Original);
-    return E;
-}
-
-static const ParmVarDecl* toCanonicalParmVar(const ParmVarDecl* PVD)
-{
-    const auto* FD = dyn_cast<FunctionDecl>(PVD->getDeclContext());
-    return FD->getCanonicalDecl()->getParamDecl(PVD->getFunctionScopeIndex());
-}
-
-// This function can either collect the PSets of the symbols based on a lookup
-// table or just the symbols into a pset if the lookup table is nullptr.
-static ContractPSet collectPSet(const Expr* E, const AttrPointsToMap* Lookup, SourceRange* FailRange)
-{
-    ContractPSet Result;
-    if (const auto* DRE = dyn_cast<DeclRefExpr>(E)) {
-        const auto* VD = dyn_cast<VarDecl>(DRE->getDecl());
-        if (!VD) {
-            *FailRange = DRE->getSourceRange();
-            return Result;
-        }
-        StringRef Name = VD->getName();
-        if (Name == "Null") {
-            Result.ContainsNull = true;
-            return Result;
-        } else if (Name == "Static") {
-            Result.ContainsStatic = true;
-            return Result;
-        } else if (Name == "Invalid") {
-            Result.ContainsInvalid = true;
-            return Result;
-        } else if (Name == "Return") {
-            Result.Vars.insert(ContractVariable::returnVal());
-            return Result;
-        } else {
-            const auto* PVD = dyn_cast<ParmVarDecl>(VD);
-            if (!PVD) {
-                *FailRange = DRE->getSourceRange();
-                return Result;
-            }
-            if (Lookup) {
-                auto It = Lookup->find(toCanonicalParmVar(PVD));
-                assert(It != Lookup->end());
-                return It->second;
-            } else {
-                Result.Vars.insert(toCanonicalParmVar(PVD));
-                return Result;
-            }
-        }
-        *FailRange = DRE->getSourceRange();
-        return Result;
-    } else if (const auto* StdInit = dyn_cast<CXXStdInitializerListExpr>(E)) {
-        E = StdInit->getSubExpr()->IgnoreImplicit();
-        if (const auto* InitList = dyn_cast<InitListExpr>(E)) {
-            for (const auto* Init : InitList->inits()) {
-                ContractPSet Elem = collectPSet(ignoreReturnValues(Init), Lookup, FailRange);
-                if (Elem.isEmpty()) {
-                    return Elem;
-                }
-                Result.merge(Elem);
-            }
-        }
-        return Result;
-    } else if (const auto* CE = dyn_cast<CallExpr>(E)) {
-        const FunctionDecl* FD = CE->getDirectCallee();
-        if (!FD || !FD->getIdentifier() || FD->getName() != "deref") {
-            *FailRange = CE->getSourceRange();
-            return Result;
-        }
-        Result = collectPSet(ignoreReturnValues(CE->getArg(0)), Lookup, FailRange);
-        auto VarsCopy = Result.Vars;
-        Result.Vars.clear();
-        for (auto Var : VarsCopy) {
-            Result.Vars.insert(Var.deref());
-        }
-        return Result;
-    }
-    *FailRange = E->getSourceRange();
-    return Result;
-}
-
-// This function and the callees are have the sole purpose of matching the
-// AST that describes the contracts. We are only interested in identifier names
-// of function calls and variables. The AST, however, has a lot of other
-// information such as casts, termporary objects and so on. They do not have
-// any semantic meaning for contracts so much of the code is just skipping
-// these unwanted nodes. The rest is collecting the identifiers and their
-// hierarchy. This code is subject to change as the language defining the
-// contracts is changing.
-// Also, the code might be rewritten a more simple way in the future
-// piggybacking this work: https://reviews.llvm.org/rL365355
-//
-// When we have a post condition like:
-//     pset(Return) == pset(a)
-// We need to look up the Pset of 'a' in preconditions but we need to
-// record the postcondition in the postconditions. This is why this
-// function takes two AttrPointsToMaps.
-static SourceRange fillPointersFromExpr(const Expr* E, AttrPointsToMap& Fill, const AttrPointsToMap& Lookup)
-{
-    const auto* CE = dyn_cast<CallExpr>(E);
-    if (!CE) {
-        return E->getSourceRange();
-    }
-    const FunctionDecl* FD = CE->getDirectCallee();
-    if (!FD || !FD->getIdentifier() || FD->getName() != "lifetime") {
-        return E->getSourceRange();
-    }
-
-    const Expr* LHS = ignoreReturnValues(CE->getArg(0));
-    if (!LHS) {
-        return CE->getArg(0)->getSourceRange();
-    }
-    const Expr* RHS = ignoreReturnValues(CE->getArg(1));
-    if (!RHS) {
-        return CE->getArg(1)->getSourceRange();
-    }
-
-    SourceRange ErrorRange;
-    ContractPSet LhsPSet = collectPSet(LHS, nullptr, &ErrorRange);
-    if (LhsPSet.Vars.size() != 1) {
-        return LHS->getSourceRange();
-    }
-    if (ErrorRange.isValid()) {
-        return ErrorRange;
-    }
-
-    ContractVariable VD = *LhsPSet.Vars.begin();
-    ContractPSet RhsPSet = collectPSet(RHS, &Lookup, &ErrorRange);
-    if (ErrorRange.isValid()) {
-        return ErrorRange;
-    }
-    Fill[VD] = RhsPSet;
-    return SourceRange();
-}
 
 namespace {
 class PSetCollector {
@@ -220,22 +73,22 @@ private:
         // Fill default preconditions and collect data for
         // computing default postconditions.
         for (const ParmVarDecl* PVD : FD->parameters()) {
-            QualType ParamType = PVD->getType();
-            TypeClassification TC = classifyTypeCategory(ParamType);
+            const QualType ParamType = PVD->getType();
+            const TypeClassification TC = classifyTypeCategory(ParamType);
             if (!TC.isIndirection()) {
                 continue;
             }
 
-            ContractVariable ParamLoc(PVD);
-            ContractVariable ParamDerefLoc(PVD, 1);
+            const ContractVariable ParamLoc(PVD);
+            const ContractVariable ParamDerefLoc(PVD, 1);
             // Nullable owners are a future note in the paper.
             ContractAttr->PrePSets.emplace(ParamLoc, ContractPSet { { ParamDerefLoc }, isNullableType(ParamType) });
             if (TC != TypeCategory::Pointer) {
                 continue;
             }
 
-            QualType PointeeType = getPointeeType(ParamType);
-            ContractPSet ParamDerefPSet { { ContractVariable { PVD, 2 } }, isNullableType(PointeeType) };
+            const QualType PointeeType = getPointeeType(ParamType);
+            const ContractPSet ParamDerefPSet { { ContractVariable { PVD, 2 } }, isNullableType(PointeeType) };
             switch (classifyTypeCategory(PointeeType)) {
             case TypeCategory::Owner: {
                 ContractAttr->PrePSets.emplace(ParamDerefLoc, ParamDerefPSet);
@@ -304,8 +157,14 @@ private:
         }
 
         // Adust preconditions based on annotations.
-        for (const Expr* E : ContractAttr->PreExprs) {
-            SourceRange Range = fillPointersFromExpr(E, ContractAttr->PrePSets, ContractAttr->PrePSets);
+        const auto Range = adjustContracts(LifetimePre, FD, ContractAttr->PrePSets, ContractAttr->PrePSets);
+        if (Range.isValid()) {
+            Reporter.warnUnsupportedExpr(Range);
+        }
+
+        for (const auto* PVD : FD->parameters()) {
+            const auto Range
+                = adjustParamContracts(LifetimePre, FD, PVD, ContractAttr->PrePSets, ContractAttr->PrePSets);
             if (Range.isValid()) {
                 Reporter.warnUnsupportedExpr(Range);
             }
@@ -331,7 +190,7 @@ private:
                 }
             }
             if (Ret.isEmpty()) {
-                Ret.ContainsStatic = true;
+                Ret.ContainsGlobal = true;
             }
             // For not_null types are never null regardless of type matching.
             Ret.ContainsNull = isNullableType(OutputType);
@@ -347,11 +206,9 @@ private:
         }
 
         // Process user defined postconditions.
-        for (const Expr* E : ContractAttr->PostExprs) {
-            SourceRange Range = fillPointersFromExpr(E, ContractAttr->PostPSets, ContractAttr->PrePSets);
-            if (Range.isValid()) {
-                Reporter.warnUnsupportedExpr(Range);
-            }
+        const auto Range = adjustContracts(LifetimePost, FD, ContractAttr->PostPSets, ContractAttr->PrePSets);
+        if (Range.isValid()) {
+            Reporter.warnUnsupportedExpr(Range);
         }
     }
 

@@ -387,13 +387,13 @@ public:
     PSet()
         : ContainsNull(false)
         , ContainsInvalid(false)
-        , ContainsStatic(false)
+        , ContainsGlobal(false)
     {
     }
     PSet(const ContractPSet& S, const FunctionDecl* FD)
         : ContainsNull(S.ContainsNull)
         , ContainsInvalid(S.ContainsInvalid)
-        , ContainsStatic(S.ContainsStatic)
+        , ContainsGlobal(S.ContainsGlobal)
     {
         for (const ContractVariable& CV : S.Vars) {
             assert(CV != ContractVariable::returnVal());
@@ -404,7 +404,7 @@ public:
     bool operator==(const PSet& O) const
     {
         return ContainsInvalid == O.ContainsInvalid && ContainsNull == O.ContainsNull
-            && ContainsStatic == O.ContainsStatic && Vars == O.Vars;
+            && ContainsGlobal == O.ContainsGlobal && Vars == O.Vars;
     }
 
     void explainWhyInvalid(LifetimeReporterBase& Reporter) const
@@ -444,9 +444,9 @@ public:
     }
 
     bool containsInvalid() const { return ContainsInvalid; }
-    bool isInvalid() const { return !ContainsNull && !ContainsStatic && ContainsInvalid && Vars.empty(); }
+    bool isInvalid() const { return !ContainsNull && !ContainsGlobal && ContainsInvalid && Vars.empty(); }
 
-    bool isUnknown() const { return !ContainsInvalid && !ContainsNull && !ContainsStatic && Vars.empty(); }
+    bool isUnknown() const { return !ContainsInvalid && !ContainsNull && !ContainsGlobal && Vars.empty(); }
 
     /// Returns true if we look for S and we have S.field in the set.
     bool containsParent(Variable Var) const
@@ -455,7 +455,7 @@ public:
     }
 
     bool containsNull() const { return ContainsNull; }
-    bool isNull() const { return ContainsNull && !ContainsStatic && !ContainsInvalid && Vars.empty(); }
+    bool isNull() const { return ContainsNull && !ContainsGlobal && !ContainsInvalid && Vars.empty(); }
     void addNull(NullReason Reason)
     {
         if (ContainsNull) {
@@ -473,7 +473,7 @@ public:
     {
         ContainsInvalid = false;
         InvReasons.clear();
-        ContainsStatic = false;
+        ContainsGlobal = false;
         Vars.clear();
     }
 
@@ -483,9 +483,9 @@ public:
         NullReasons.push_back(Reason);
     }
 
-    bool containsStatic() const { return ContainsStatic; }
-    bool isStatic() const { return ContainsStatic && !ContainsNull && !ContainsInvalid && Vars.empty(); }
-    void addStatic() { ContainsStatic = true; }
+    bool containsGlobal() const { return ContainsGlobal; }
+    bool isGlobal() const { return ContainsGlobal && !ContainsNull && !ContainsInvalid && Vars.empty(); }
+    void addGlobal() { ContainsGlobal = true; }
 
     const std::set<Variable>& vars() const { return Vars; }
 
@@ -526,9 +526,9 @@ public:
 
         // If 'O' includes static and no x or o, then 'this' must include static and
         // no x or o.
-        if (O.ContainsStatic) {
+        if (O.ContainsGlobal) {
             // here: 'this' is not Invalid, if 'this' is null, O must contains null, checked before
-            if (!ContainsStatic && !Vars.empty()) {
+            if (!ContainsGlobal && !Vars.empty()) {
                 Reporter.warnWrongPset(Range, Source, SourceName, str(), O.str());
                 return false;
             }
@@ -561,8 +561,8 @@ public:
         if (ContainsNull) {
             Entries.push_back("(null)");
         }
-        if (ContainsStatic) {
-            Entries.push_back("(static)");
+        if (ContainsGlobal) {
+            Entries.push_back("(global)");
         }
         for (const auto& V : Vars) {
             Entries.push_back(V.getName());
@@ -585,7 +585,7 @@ public:
             ContainsNull = true;
             NullReasons = O.NullReasons;
         }
-        ContainsStatic |= O.ContainsStatic;
+        ContainsGlobal |= O.ContainsGlobal;
 
         Vars.insert(O.Vars.begin(), O.Vars.end());
     }
@@ -621,7 +621,7 @@ public:
     void insert(Variable Var, unsigned Deref = 0)
     {
         if (Var.hasStaticLifetime()) {
-            ContainsStatic = true;
+            ContainsGlobal = true;
             return;
         }
 
@@ -659,12 +659,12 @@ public:
         return ret;
     }
 
-    /// A pset that contains (static), (null)
-    static PSet staticVar(bool Nullable = false)
+    /// A pset that contains (global), (null)
+    static PSet globalVar(bool Nullable = false)
     {
         PSet ret;
         ret.ContainsNull = Nullable;
-        ret.ContainsStatic = true;
+        ret.ContainsGlobal = true;
         return ret;
     }
 
@@ -673,7 +673,7 @@ public:
     {
         PSet ret;
         if (Var.hasStaticLifetime()) {
-            ret.ContainsStatic = true;
+            ret.ContainsGlobal = true;
         } else {
             Var.deref(Deref);
             ret.Vars.emplace(Var);
@@ -684,7 +684,7 @@ public:
 private:
     unsigned ContainsNull : 1;
     unsigned ContainsInvalid : 1;
-    unsigned ContainsStatic : 1;
+    unsigned ContainsGlobal : 1;
     std::set<Variable> Vars;
 
     std::vector<InvalidationReason> InvReasons;

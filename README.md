@@ -77,3 +77,19 @@ void Foo2(int*& p);
 void Bar([[clang::annotate("gsl::lifetime_in")]] int** p);
 void Bar2([[clang::annotate("gsl::lifetime_in")]] int*& p);
 ```
+
+## gsl::pre or gsl::post
+We need to use clang::annotate to mimic the effects of `[[gsl::pre]]` and `[[gsl::post]]` in the paper
+
+```
+constexpr int Return = 0;
+constexpr int Global = 1;
+
+struct Test
+{
+    [[clang::annotate("gsl::lifetime_pre", "*z", Global)]]
+    [[clang::annotate("gsl::lifetime_post", Return, "x", "y", "*z", "*this")]]
+    [[clang::annotate("gsl::lifetime_post", "*z", "x")]]
+    int* Foo(int* x [[clang::annotate("gsl::lifetime_pre", Global)]], int* y, int** z);
+};
+```

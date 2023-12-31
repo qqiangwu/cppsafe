@@ -8,9 +8,18 @@
 
 namespace clang::lifetime {
 
+inline constexpr StringRef LifetimePre = "gsl::lifetime_pre";
+inline constexpr StringRef LifetimePost = "gsl::lifetime_post";
+
 inline bool isAnnotatedWith(const Decl* D, StringRef Category)
 {
     return llvm::any_of(D->specific_attrs<AnnotateAttr>(),
+        [Category](const AnnotateAttr* A) { return A->getAnnotation() == Category; });
+}
+
+inline auto getAnnotatedWith(const Decl* D, StringRef Category)
+{
+    return llvm::make_filter_range(D->specific_attrs<AnnotateAttr>(),
         [Category](const AnnotateAttr* A) { return A->getAnnotation() == Category; });
 }
 

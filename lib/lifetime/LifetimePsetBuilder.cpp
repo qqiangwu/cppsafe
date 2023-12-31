@@ -19,13 +19,14 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Analysis/CFG.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Lex/Lexer.h"
 #include <clang/AST/Decl.h>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
 #include <clang/Basic/SourceLocation.h>
-#include <llvm/Support/Casting.h>
-#include <llvm/Support/raw_ostream.h>
+
+#include <map>
 
 namespace clang::lifetime {
 
@@ -138,9 +139,9 @@ public:
         return E && ignoreTransparentExprs(E) != E;
     }
 
-    void VisitStringLiteral(const StringLiteral* SL) { setPSet(SL, PSet::staticVar(false)); }
+    void VisitStringLiteral(const StringLiteral* SL) { setPSet(SL, PSet::globalVar(false)); }
 
-    void VisitPredefinedExpr(const PredefinedExpr* E) { setPSet(E, PSet::staticVar(false)); }
+    void VisitPredefinedExpr(const PredefinedExpr* E) { setPSet(E, PSet::globalVar(false)); }
 
     void VisitDeclStmt(const DeclStmt* DS)
     {
@@ -151,9 +152,9 @@ public:
         }
     }
 
-    void VisitCXXNewExpr(const CXXNewExpr* E) { setPSet(E, PSet::staticVar(false)); }
+    void VisitCXXNewExpr(const CXXNewExpr* E) { setPSet(E, PSet::globalVar(false)); }
 
-    void VisitAddrLabelExpr(const AddrLabelExpr* E) { setPSet(E, PSet::staticVar(false)); }
+    void VisitAddrLabelExpr(const AddrLabelExpr* E) { setPSet(E, PSet::globalVar(false)); }
 
     void VisitCXXDefaultInitExpr(const CXXDefaultInitExpr* E)
     {
@@ -179,7 +180,7 @@ public:
     void VisitDeclRefExpr(const DeclRefExpr* DeclRef)
     {
         if (isa<FunctionDecl>(DeclRef->getDecl()) || DeclRef->refersToEnclosingVariableOrCapture()) {
-            setPSet(DeclRef, PSet::staticVar(false));
+            setPSet(DeclRef, PSet::globalVar(false));
         } else if (const auto* VD = dyn_cast<VarDecl>(DeclRef->getDecl())) {
             setPSet(DeclRef, varRefersTo(VD, DeclRef->getSourceRange()));
         } else if (const auto* B = dyn_cast<BindingDecl>(DeclRef->getDecl())) {
@@ -216,7 +217,7 @@ public:
             setPSet(ME, Ret);
         } else if (isa<VarDecl>(ME->getMemberDecl())) {
             // A static data member of this class
-            setPSet(ME, PSet::staticVar(false));
+            setPSet(ME, PSet::globalVar(false));
         }
     }
 
@@ -246,7 +247,7 @@ public:
         // The typeid expression is an lvalue expression which refers to an object
         // with static storage duration, of the polymorphic type const
         // std::type_info or of some type derived from it.
-        setPSet(E, PSet::staticVar());
+        setPSet(E, PSet::globalVar());
     }
 
     void VisitSubstNonTypeTemplateParmExpr(const SubstNonTypeTemplateParmExpr* E)
@@ -254,7 +255,7 @@ public:
         // Non-type template parameters that are pointers must point to something
         // static (because only addresses known at compiler time are allowed)
         if (hasPSet(E)) {
-            setPSet(E, PSet::staticVar());
+            setPSet(E, PSet::globalVar());
         }
     }
 
@@ -541,7 +542,7 @@ public:
             // FIXME: We should do setPSet(E, getPSet(E->getSubExpr())),
             // but the getSubExpr() is not visited as part of the CFG,
             // so it does not have a pset.
-            setPSet(E, PSet::staticVar(false));
+            setPSet(E, PSet::globalVar(false));
         }
     }
 
@@ -587,7 +588,7 @@ public:
             return;
         }
         PSet ThrownPSet = getPSet(TE->getSubExpr());
-        if (!ThrownPSet.isStatic()) {
+        if (!ThrownPSet.isGlobal()) {
             Reporter.warnNonStaticThrow(TE->getSourceRange(), ThrownPSet.str());
         }
     }
@@ -720,8 +721,8 @@ public:
             Ret.merge(getPSet(Var));
         }
 
-        if (P.containsStatic()) {
-            Ret.merge(PSet::staticVar(false));
+        if (P.containsGlobal()) {
+            Ret.merge(PSet::globalVar(false));
         }
         return Ret;
     }
@@ -740,6 +741,8 @@ public:
     PSet derefPSet(const PSet& P) const override;
 
     bool handleDebugFunctions(const CallExpr* CallE) const;
+
+    void debugPmap(SourceRange Range) const;
 
     PSet handlePointerAssign(QualType LHS, PSet RHS, SourceRange Range, bool AddReason = true) const override
     {
@@ -772,7 +775,7 @@ public:
                     VD->getType(), getPSet(Initializer), VD->getSourceRange(), VD->getType()->isPointerType());
             } else if (VD->hasGlobalStorage()) {
                 // Never treat local statics as uninitialized.
-                PS = PSet::staticVar(/*TODO*/ false);
+                PS = PSet::globalVar(/*TODO*/ false);
             } else {
                 PS = PSet::invalid(InvalidationReason::NotInitialized(VD->getLocation(), CurrentBlock));
             }
@@ -819,7 +822,7 @@ PSet PSetsBuilder::getPSet(const Variable& P) const
 {
     // Assumption: global Pointers have a pset of {static}
     if (P.hasStaticLifetime()) {
-        return PSet::staticVar(false);
+        return PSet::globalVar(false);
     }
 
     auto I = PMap.find(P);
@@ -832,7 +835,7 @@ PSet PSetsBuilder::getPSet(const Variable& P) const
     // Until proper aggregate support is implemented, this might be triggered
     // unintentionally.
     if (P.isField()) {
-        return PSet::staticVar(false);
+        return PSet::globalVar(false);
     }
 
     if (P.getType()->isArrayType()) {
@@ -874,15 +877,15 @@ PSet PSetsBuilder::derefPSet(const PSet& PS) const
     }
 
     PSet RetPS;
-    if (PS.containsStatic()) {
-        RetPS.addStatic();
+    if (PS.containsGlobal()) {
+        RetPS.addGlobal();
     }
 
     for (auto V : PS.vars()) {
         const unsigned Order = V.getOrder();
         if (Order > 0) {
             if (Order > MaxOrderDepth) {
-                RetPS.addStatic();
+                RetPS.addGlobal();
             } else {
                 RetPS.insert(V.deref()); // pset(o') = { o'' }
             }
@@ -898,7 +901,7 @@ void PSetsBuilder::setPSet(const PSet& LHS, PSet RHS, SourceRange Range)
 {
     // Assumption: global Pointers have a pset that is a subset of {static,
     // null}
-    if (LHS.isStatic() && !RHS.isUnknown() && !RHS.isStatic() && !RHS.isNull()) {
+    if (LHS.isGlobal() && !RHS.isUnknown() && !RHS.isGlobal() && !RHS.isNull()) {
         StringRef SourceText = Lexer::getSourceText(
             CharSourceRange::getTokenRange(Range), ASTCtxt.getSourceManager(), ASTCtxt.getLangOpts());
         Reporter.warnPsetOfGlobal(Range, SourceText, RHS.str());
@@ -1092,6 +1095,7 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
                              .Case("__lifetime_type_category", 3)
                              .Case("__lifetime_type_category_arg", 4)
                              .Case("__lifetime_contracts", 5)
+                             .Case("__lifetime_pmap", 6)
                              .Default(0);
 
     const auto Range = CallE->getSourceRange();
@@ -1165,10 +1169,21 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
 
         return true;
     }
+    case 6:
+        debugPmap(Range);
+        return true;
+
     default:
         return false;
     }
-} // namespace lifetime
+}
+
+void PSetsBuilder::debugPmap(const SourceRange Range) const
+{
+    for (const auto& [V, P] : PMap) {
+        Reporter.debugPset(Range, V.getName(), P.str());
+    }
+}
 
 static const Stmt* getRealTerminator(const CFGBlock& B)
 {

@@ -13,6 +13,7 @@
 #include <clang/Basic/Lambda.h>
 #include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/SourceLocation.h>
+#include <llvm/Support/Caching.h>
 
 #include <cassert>
 
@@ -129,7 +130,7 @@ void CallVisitor::enforcePreAndPostConditions(
             Pair.second.removeNull();
         }
         if (Pair.second.isUnknown()) {
-            Pair.second.addStatic();
+            Pair.second.addGlobal();
         }
     }
 
@@ -324,7 +325,7 @@ void CallVisitor::enforcePostconditions(const Expr* CallE, const FunctionDecl* C
                 if (ArgPS.vars().empty()) {
                     return;
                 }
-                Builder.setPSet(ArgPS, PSet::staticVar(false), Arg->getSourceRange());
+                Builder.setPSet(ArgPS, PSet::globalVar(false), Arg->getSourceRange());
                 return;
             }
             Variable V = PVD;

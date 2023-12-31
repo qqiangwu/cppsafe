@@ -79,7 +79,6 @@ Checks:
   clang-analyzer-apiModeling.google.GTest
   clang-analyzer-apiModeling.llvm.CastValue
   clang-analyzer-apiModeling.llvm.ReturnValue
-  clang-analyzer-core.CallAndMessage
   clang-analyzer-core.CallAndMessageModeling
   clang-analyzer-core.DivideZero
   clang-analyzer-core.DynamicTypePropagation
@@ -339,3 +338,4 @@ CheckOptions:
 # -misc-use-anonymous-namespace
 # -misc-no-recursion
 # -cppcoreguidelines-avoid-magic-numbers
+# -clang-analyzer-core.CallAndMessage

@@ -101,24 +101,33 @@ struct ContractPSet {
     ContractPSet(const std::set<ContractVariable>& Vs = {}, bool ContainsNull = false)
         : ContainsNull(ContainsNull)
         , ContainsInvalid(false)
-        , ContainsStatic(false)
+        , ContainsGlobal(false)
         , Vars(Vs)
     {
     }
+
+    ContractPSet(const ContractVariable& V, bool ContainsNull = false)
+        : ContractPSet(std::set { V }, ContainsNull)
+    {
+    }
+
     unsigned ContainsNull : 1;
     unsigned ContainsInvalid : 1;
-    unsigned ContainsStatic : 1;
+    unsigned ContainsGlobal : 1;
+
     std::set<ContractVariable> Vars;
 
     void merge(const ContractPSet& RHS)
     {
         ContainsNull |= RHS.ContainsNull;
-        ContainsStatic |= RHS.ContainsStatic;
+        ContainsGlobal |= RHS.ContainsGlobal;
         ContainsInvalid |= RHS.ContainsInvalid;
         Vars.insert(RHS.Vars.begin(), RHS.Vars.end());
     }
 
-    bool isEmpty() const { return Vars.empty() && !ContainsNull && !ContainsInvalid && !ContainsStatic; }
+    bool isEmpty() const { return Vars.empty() && !ContainsNull && !ContainsInvalid && !ContainsGlobal; }
+
+    bool isVar() const { return Vars.size() == 1 && !ContainsNull && !ContainsInvalid && !ContainsGlobal; }
 };
 } // namespace clang
 #endif
