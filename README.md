@@ -3,6 +3,9 @@ A cpp static analyzer to enforce lifetime profile.
 
 Code is based on https://github.com/mgehre/llvm-project.
 
++ Cpp core guidelines Lifetime Profile: https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#SS-lifetime
++ Spec: https://github.com/isocpp/CppCoreGuidelines/blob/master/docs/Lifetime.pdf
+
 # Build
 Please make sure conan2 and cmake is avaiable.
 
