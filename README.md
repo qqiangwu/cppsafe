@@ -22,17 +22,25 @@ cppship build
 # Debug functions
 ```
 template <class T>
-void __lifetime_contracts(T&&);
+void __lifetime_contracts(T&&) {}
 
 void Foo();
 
-struct Dummy { int Foo(int*); };
+struct Dummy {
+    int Foo(int*);
+    void Bar(int*);
+};
 
 __lifetime_contracts(&Foo);
 
 // __lifetime_contracts will derive the actual function from the call
 // note a return value is required to make semantics check pass
 __lifetime_contracts(Dummy{}.Foo(nullptr));
+
+__lifetime_contracts([]{
+    Dummy d;
+    d.Bar(nullptr);  // <- will be inspected
+});
 ```
 
 # Annotations

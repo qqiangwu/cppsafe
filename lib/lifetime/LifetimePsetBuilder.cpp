@@ -31,6 +31,7 @@ namespace clang::lifetime {
 
 namespace {
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage): just for convevience
 #define VERBOSE_DEBUG 0
 #if VERBOSE_DEBUG
 #define DBG(x) llvm::errs() << x
@@ -88,6 +89,7 @@ public:
     /// move psets from RefersTo into PsetOfExpr.
     /// Does not ignore MaterializeTemporaryExpr as Expr::IgnoreParenImpCasts
     /// would.
+    // NOLINTBEGIN(readability-else-after-return)
     static const Expr* ignoreTransparentExprs(const Expr* E, bool IgnoreLValueToRValue = false)
     {
         while (true) {
@@ -127,6 +129,7 @@ public:
             }
             return E;
         }
+        // NOLINTEND(readability-else-after-return)
     }
 
     static bool isIgnoredStmt(const Stmt* S)
@@ -165,13 +168,13 @@ public:
             auto P = getPSet(V);
             if (checkPSetValidity(P, Range)) {
                 return P;
-            } else {
-                return {};
             }
-        } else {
-            return PSet::singleton(V);
+
+            return {};
         }
-    };
+
+        return PSet::singleton(V);
+    }
 
     void VisitDeclRefExpr(const DeclRefExpr* DeclRef)
     {
@@ -414,7 +417,7 @@ public:
             }
 
             setPSet(BO, getPSet(BO->getLHS()));
-        } else if (isArrayPlusIndex(BO)) {
+        } else if (isArrayPlusIndex(BO)) { // NOLINT(bugprone-branch-clone)
             setPSet(BO, getPSet(BO->getLHS()));
         } else if (BO->getType()->isPointerType()) {
             Reporter.warnPointerArithmetic(BO->getOperatorLoc());
@@ -690,7 +693,7 @@ public:
             llvm_unreachable("Expression has no entry in RefersTo");
 #endif
             return {};
-        } else {
+        } else { // NOLINT(readability-else-after-return)
             auto I = PSetsOfExpr.find(E);
             if (I != PSetsOfExpr.end()) {
                 return I->second;
@@ -752,6 +755,7 @@ public:
         return RHS;
     }
 
+    // NOLINTNEXTLINE(readability-identifier-naming): required by parent
     void VisitVarDecl(const VarDecl* VD)
     {
         // TODO: handle DecompositionDecl.
@@ -802,7 +806,7 @@ public:
     {
     }
 
-    ~PSetsBuilder() = default;
+    ~PSetsBuilder() override = default;
 
     DISALLOW_COPY_AND_MOVE(PSetsBuilder);
 
@@ -875,7 +879,7 @@ PSet PSetsBuilder::derefPSet(const PSet& PS) const
     }
 
     for (auto V : PS.vars()) {
-        int Order = V.getOrder();
+        const unsigned Order = V.getOrder();
         if (Order > 0) {
             if (Order > MaxOrderDepth) {
                 RetPS.addStatic();
@@ -956,6 +960,7 @@ bool PSetsBuilder::checkPSetValidity(const PSet& PS, SourceRange Range) const
 ///  ... // pset of p is 'null'
 /// else
 ///  ... // pset of p does not contain 'null'
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): legacy code
 void PSetsBuilder::updatePSetsFromCondition(
     const Stmt* S, bool Positive, std::optional<PSetsMap>& FalseBranchExitPMap, SourceRange Range)
 {
@@ -1042,11 +1047,35 @@ void PSetsBuilder::updatePSetsFromCondition(
     }
 } // namespace lifetime
 
+static const FunctionDecl* getFunctionDecl(const Expr* E)
+{
+    if (const auto* Lambda = dyn_cast<LambdaExpr>(E)) {
+        const auto* CE = dyn_cast<CallExpr>(Lambda->getCompoundStmtBody()->body_back());
+        if (!CE) {
+            return nullptr;
+        }
+
+        return CE->getDirectCallee()->getCanonicalDecl();
+    }
+
+    const auto* FD = std::invoke([E]() -> const FunctionDecl* {
+        if (const auto* CE = dyn_cast<CallExpr>(E)) {
+            return CE->getDirectCallee();
+        }
+        if (const auto* Tmp = dyn_cast<CXXTemporaryObjectExpr>(E)) {
+            return Tmp->getConstructor();
+        }
+
+        return dyn_cast<FunctionDecl>(cast<DeclRefExpr>(E)->getDecl());
+    })->getCanonicalDecl();
+
+    return FD;
+}
+
 /// Checks if the statement S is a call to a debug function and dumps the
 /// corresponding part of the state.
 bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
 {
-
     const FunctionDecl* Callee = CallE->getDirectCallee();
     if (!Callee) {
         return false;
@@ -1057,21 +1086,18 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
         return false;
     }
 
-    auto FuncNum = llvm::StringSwitch<int>(I->getName())
-                       .Case("__lifetime_pset", 1)
-                       .Case("__lifetime_pset_ref", 2)
-                       .Case("__lifetime_type_category", 3)
-                       .Case("__lifetime_type_category_arg", 4)
-                       .Case("__lifetime_contracts", 5)
-                       .Default(0);
-    if (FuncNum == 0) {
-        return false;
-    }
+    const auto FuncNum = llvm::StringSwitch<int>(I->getName())
+                             .Case("__lifetime_pset", 1)
+                             .Case("__lifetime_pset_ref", 2)
+                             .Case("__lifetime_type_category", 3)
+                             .Case("__lifetime_type_category_arg", 4)
+                             .Case("__lifetime_contracts", 5)
+                             .Default(0);
 
-    auto Range = CallE->getSourceRange();
+    const auto Range = CallE->getSourceRange();
     switch (FuncNum) {
-    case 1:
-    case 2: {
+    case 1: // __lifetime_pset
+    case 2: { // __lifetime_pset_ref
         assert(CallE->getNumArgs() == 1 && "__lifetime_pset takes one argument");
         PSet Set = getPSet(CallE->getArg(0));
 
@@ -1086,42 +1112,36 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
         Reporter.debugPset(Range, SourceText, Set.str());
         return true;
     }
-    case 3: {
+    case 3: { // __lifetime_type_category
         const auto* Args = Callee->getTemplateSpecializationArgs();
         auto QType = Args->get(0).getAsType();
         auto Class = classifyTypeCategory(QType);
-        if (Class.TC == TypeCategory::Pointer || Class.TC == TypeCategory::Owner) {
+        if (Class.isIndirection()) {
             Reporter.debugTypeCategory(Range, Class.TC, Class.PointeeType.getAsString());
         } else {
             Reporter.debugTypeCategory(Range, Class.TC);
         }
         return true;
     }
-    case 4: {
+    case 4: { // __lifetime_type_category_arg
         auto QType = CallE->getArg(0)->getType();
         auto Class = classifyTypeCategory(QType);
-        if (Class.TC == TypeCategory::Pointer || Class.TC == TypeCategory::Owner) {
+        if (Class.isIndirection()) {
             Reporter.debugTypeCategory(Range, Class.TC, Class.PointeeType.getAsString());
         } else {
             Reporter.debugTypeCategory(Range, Class.TC);
         }
         return true;
     }
-    case 5: {
+    case 5: { // __lifetime_contracts
         const Expr* E = CallE->getArg(0)->IgnoreImplicit();
         if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
             E = UO->getSubExpr();
         }
-        const auto* FD = std::invoke([E]() -> const FunctionDecl* {
-            if (const auto* CE = dyn_cast<CallExpr>(E)) {
-                return CE->getDirectCallee();
-            }
-            if (const auto* Tmp = dyn_cast<CXXTemporaryObjectExpr>(E)) {
-                return Tmp->getConstructor();
-            }
-
-            return dyn_cast<FunctionDecl>(cast<DeclRefExpr>(E)->getDecl());
-        })->getCanonicalDecl();
+        const auto* FD = getFunctionDecl(E);
+        if (FD == nullptr) {
+            return false;
+        }
 
         PSetsMap PreConditions;
         getLifetimeContracts(PreConditions, FD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/true);
@@ -1146,7 +1166,7 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
         return true;
     }
     default:
-        llvm_unreachable("Unknown debug function.");
+        return false;
     }
 } // namespace lifetime
 
@@ -1176,13 +1196,15 @@ static SourceRange getSourceRange(const CFGElement& E)
 {
     if (auto S = E.getAs<CFGStmt>()) {
         return S->getStmt()->getSourceRange();
-    } else if (auto S = E.getAs<CFGLifetimeEnds>()) {
+    }
+    if (auto S = E.getAs<CFGLifetimeEnds>()) {
         return S->getTriggerStmt()->getSourceRange();
     }
     return {};
 }
 
 // Update PSets in Builder through all CFGElements of this block
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): refine this later
 void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseBranchExitPMap)
 {
     CurrentBlock = &B;
@@ -1200,7 +1222,7 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
                     return;
                 }
 #ifndef NDEBUG
-                if (auto* Ex = dyn_cast<Expr>(S)) {
+                if (const auto* Ex = dyn_cast<Expr>(S)) {
                     if (Ex->isLValue() && !Ex->getType()->isFunctionType() && RefersTo.find(Ex) == RefersTo.end()) {
                         Ex->dump();
                         llvm_unreachable("Missing entry in RefersTo");
