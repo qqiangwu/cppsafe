@@ -213,6 +213,8 @@ private:
         std::vector<ContractVariable> Output;
     };
 
+    // p2.5.2: Create the input sets
+    // p2.5.4: Create the output sets
     void fillPreConditions(LifetimeContractAttr* ContractAttr, ParamDerivedLocations& Locations) const
     {
         // Fill default preconditions and collect data for
@@ -312,6 +314,7 @@ private:
 
     void fillPostConditions(LifetimeContractAttr* ContractAttr, ParamDerivedLocations& Locations) const
     {
+        // p2.5.5
         // Compute default postconditions.
         auto ComputeOutput = [&](QualType OutputType) {
             ContractPSet Ret;

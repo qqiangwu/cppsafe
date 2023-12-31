@@ -359,6 +359,8 @@ void CallVisitor::enforcePostconditions(const Expr* CallE, const FunctionDecl* C
     }
 }
 
+// p2.5.5
+// For every Owner o in Oout, at each call site reset pset(argument(o)) = {o'}
 void CallVisitor::invalidateNonConstUse(const Expr* CallE)
 {
     const auto* Callee = getDecl(CallE);
