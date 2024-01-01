@@ -16,14 +16,18 @@ conan export --name=llvm --version=17.0.2 .
 cd -
 
 # Build
-cmake -S . -B build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+
+# Test
+cd integration_test
+bash run_tests.sh
 
 # Or you can try cppship https://github.com/qqiangwu/cppship
 cppship build
 ```
 
 # Debug functions
-```
+```C++
 template <class T>
 void __lifetime_contracts(T&&) {}
 
@@ -81,7 +85,7 @@ void Bar2([[clang::annotate("gsl::lifetime_in")]] int*& p);
 ## gsl::pre or gsl::post
 We need to use clang::annotate to mimic the effects of `[[gsl::pre]]` and `[[gsl::post]]` in the paper
 
-```
+```C++
 constexpr int Return = 0;
 constexpr int Global = 1;
 
