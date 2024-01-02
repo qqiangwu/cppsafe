@@ -105,7 +105,9 @@ private:
             }
             case TypeCategory::Pointer:
                 if (!isLifetimeConst(FD, PointeeType, gsl::narrow_cast<int>(PVD->getFunctionScopeIndex()))
-                    && !isLifetimeIn(PVD)) {
+                    && !isLifetimeIn(PVD)
+                    // All parameters passed by lvalue reference to non-const
+                    && !isForwardingReference(FD, PVD)) {
                     // Output params are initially invalid.
                     ContractPSet InvalidPS;
                     InvalidPS.ContainsInvalid = true;
@@ -210,6 +212,44 @@ private:
         if (Range.isValid()) {
             Reporter.warnUnsupportedExpr(Range);
         }
+    }
+
+    static bool isForwardingReference(const FunctionDecl* FD, const ParmVarDecl* PVD)
+    {
+        const auto* FunctionTemplate = FD->getPrimaryTemplate();
+        if (!FunctionTemplate) {
+            return PVD->getType()->isRValueReferenceType();
+        }
+
+        const auto* D = FunctionTemplate->getTemplatedDecl()->getParamDecl(PVD->getFunctionScopeIndex());
+        QualType ToCheck = D->getType();
+        if (const auto* ParamExpansion = dyn_cast<PackExpansionType>(ToCheck)) {
+            ToCheck = ParamExpansion->getPattern();
+        }
+
+        // C++1z [temp.deduct.call]p3:
+        //   A forwarding reference is an rvalue reference to a cv-unqualified
+        //   template parameter that does not represent a template parameter of a
+        //   class template.
+        if (const auto* ParamRef = ToCheck->getAs<RValueReferenceType>()) {
+            if (ParamRef->getPointeeType().getQualifiers()) {
+                return false;
+            }
+
+            const unsigned FirstInnerIndex = getFirstInnerIndex(FunctionTemplate);
+            const auto* TypeParm = ParamRef->getPointeeType()->getAs<TemplateTypeParmType>();
+            return TypeParm && TypeParm->getIndex() >= FirstInnerIndex;
+        }
+        return false;
+    }
+
+    static unsigned getFirstInnerIndex(const FunctionTemplateDecl* FTD)
+    {
+        auto* Guide = dyn_cast<CXXDeductionGuideDecl>(FTD->getTemplatedDecl());
+        if (!Guide || !Guide->isImplicit()) {
+            return 0;
+        }
+        return Guide->getDeducedTemplate()->getTemplateParameters()->size();
     }
 
     bool canAssign(QualType From, QualType To) const
