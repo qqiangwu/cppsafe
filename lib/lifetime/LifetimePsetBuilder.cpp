@@ -24,6 +24,7 @@
 #include <clang/AST/Decl.h>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
+#include <clang/Basic/Lambda.h>
 #include <clang/Basic/SourceLocation.h>
 
 #include <map>
@@ -799,6 +800,40 @@ public:
             setPSet(PSet::singleton(VD), PSet::singleton(VD), Range);
             break;
         }
+    }
+
+    void VisitLambdaExpr(const LambdaExpr* L)
+    {
+        PSet PS;
+
+        for (const auto V : L->captures()) {
+            if (V.capturesThis()) {
+                const auto *RD = cast<CXXMethodDecl>(AnalyzedFD)->getParent();
+                PS.merge(PSet::singleton(Variable::thisPointer(RD), 1));
+                continue;
+            }
+            if (V.capturesVariable()) {
+                const auto* VD = V.getCapturedVar()->getPotentiallyDecomposedVarDecl();
+                if (!VD) {
+                    continue;
+                }
+
+                if (V.getCaptureKind() == LCK_ByRef) {
+                    PS.merge(getPSet(VD));
+                    continue;
+                }
+
+                if (classifyTypeCategory(VD->getType()).isPointer()) {
+                    PS.merge(getPSet(VD));
+                }
+            }
+        }
+
+        if (PS.isUnknown()) {
+            PS.addGlobal();
+        }
+
+        setPSet(L, PS);
     }
 
     void updatePSetsFromCondition(

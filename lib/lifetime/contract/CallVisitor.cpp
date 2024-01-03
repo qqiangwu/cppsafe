@@ -340,24 +340,6 @@ void CallVisitor::enforcePostconditions(const Expr* CallE, const FunctionDecl* C
                 Builder.setPSet(Builder.getPSet(ObjExpr), PostConditions[V], ObjExpr->getSourceRange());
             }
         });
-
-    // Lambdas are not supported yet properly. Invalidate the captured pointers
-    // so we do not get false positives with uninitialized values.
-    if (const auto* M = dyn_cast<CXXMethodDecl>(Callee)) {
-        const CXXRecordDecl* RD = M->getParent();
-        if (!RD->isLambda()) {
-            return;
-        }
-        for (const LambdaCapture& Capture : RD->captures()) {
-            if (Capture.getCaptureKind() != LCK_ByRef || !Capture.capturesVariable()) {
-                continue;
-            }
-            const VarDecl* VD = Capture.getCapturedVar()->getPotentiallyDecomposedVarDecl();
-            if (VD && classifyTypeCategory(VD->getType()) == TypeCategory::Pointer) {
-                Builder.setPSet(PSet::singleton(VD), {}, Callee->getSourceRange());
-            }
-        }
-    }
 }
 
 // p2.5.5

@@ -218,6 +218,16 @@ static TypeClassification classifyTypeCategoryImpl(const Type* T)
         return TypeCategory::Value;
     }
 
+    if (R->isLambda()) {
+        return { TypeCategory::Pointer, R->getASTContext().VoidTy };
+    }
+
+    if (R->isInStdNamespace() && R->getDeclName().isIdentifier()) {
+        if (R->getName().ends_with("function")) {
+            return { TypeCategory::Pointer, R->getASTContext().VoidTy };
+        }
+    }
+
     // In case we do not know the pointee type fall back to value.
     QualType Pointee = getPointeeType(T);
 
@@ -256,7 +266,6 @@ static TypeClassification classifyTypeCategoryImpl(const Type* T)
     // Do not attempt to infer implicit Pointer/Owner if we cannot deduce
     // the DerefType.
     if (!Pointee.isNull()) {
-
         if (auto Cat = classifyStd(T)) {
             return { *Cat, Pointee };
         }
