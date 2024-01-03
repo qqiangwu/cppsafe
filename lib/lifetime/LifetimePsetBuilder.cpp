@@ -213,6 +213,12 @@ public:
                 if (!checkPSetValidity(Ret, ME->getSourceRange())) {
                     Ret = {};
                 }
+            } else {
+                // if Var of Ret contains expanded var, deref it
+                Ret = derefPSetForExpandedMember(Ret);
+                if (!checkPSetValidity(Ret, ME->getSourceRange())) {
+                    Ret = {};
+                }
             }
             setPSet(ME, Ret);
         } else if (isa<VarDecl>(ME->getMemberDecl())) {
@@ -738,11 +744,13 @@ public:
         }
     }
     void setPSet(const PSet& LHS, PSet RHS, SourceRange Range) override;
+
     PSet derefPSet(const PSet& P) const override;
+    PSet derefPSetForExpandedMember(const PSet& P) const;
 
     bool handleDebugFunctions(const CallExpr* CallE) const;
 
-    void debugPmap(SourceRange Range) const;
+    void debugPmap(SourceRange Range) const override;
 
     PSet handlePointerAssign(QualType LHS, PSet RHS, SourceRange Range, bool AddReason = true) const override
     {
@@ -891,6 +899,33 @@ PSet PSetsBuilder::derefPSet(const PSet& PS) const
             }
         } else {
             RetPS.merge(getPSet(V));
+        }
+    }
+
+    return RetPS;
+}
+
+PSet PSetsBuilder::derefPSetForExpandedMember(const PSet& PS) const
+{
+    if (PS.isUnknown()) {
+        return {};
+    }
+
+    if (PS.containsInvalid()) {
+        return {}; // Return unknown, so we don't diagnose again.
+    }
+
+    PSet RetPS;
+    if (PS.containsGlobal()) {
+        RetPS.addGlobal();
+    }
+
+    for (const auto& V : PS.vars()) {
+        const auto It = PMap.find(V);
+        if (It != PMap.end()) {
+            RetPS.merge(It->second);
+        } else {
+            RetPS.merge(PSet::singleton(V));
         }
     }
 
@@ -1180,8 +1215,22 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
 
 void PSetsBuilder::debugPmap(const SourceRange Range) const
 {
+    llvm::errs() << "---\n";
+    llvm::errs() << "PMap\n";
     for (const auto& [V, P] : PMap) {
-        Reporter.debugPset(Range, V.getName(), P.str());
+        llvm::errs() << V.getName() << "->" << P.str() << "\n";
+    }
+
+    llvm::errs() << "\nRefersTo\n";
+    for (const auto& [V, P] : RefersTo) {
+        V->dumpPretty(ASTCtxt);
+        llvm::errs() << "->" << P.str() << "\n";
+    }
+
+    llvm::errs() << "\nPSetsOfExpr\n";
+    for (const auto& [V, P] : PSetsOfExpr) {
+        V->dumpPretty(ASTCtxt);
+        llvm::errs() << "->" << P.str() << "\n";
     }
 }
 

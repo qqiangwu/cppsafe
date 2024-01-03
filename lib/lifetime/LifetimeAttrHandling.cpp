@@ -22,6 +22,7 @@
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
+#include <clang/AST/Type.h>
 #include <clang/Basic/SourceLocation.h>
 #include <gsl/narrow>
 
@@ -66,6 +67,7 @@ private:
         std::vector<ContractVariable> Output;
     };
 
+    // p2.5.1: Expand parameters and returns: Aggregates, nonstatic data members, and Pointer dereference locations
     // p2.5.2: Create the input sets
     // p2.5.4: Create the output sets
     void fillPreConditions(LifetimeContractAttr* ContractAttr, ParamDerivedLocations& Locations) const
@@ -75,6 +77,14 @@ private:
         for (const ParmVarDecl* PVD : FD->parameters()) {
             const QualType ParamType = PVD->getType();
             const TypeClassification TC = classifyTypeCategory(ParamType);
+
+// value expansion is not handled well
+#if 0
+            if (TC.isAggregate()) {
+                expandParameter(
+                    ContractVariable(PVD), ParamType, ParamType, nullptr, ContractAttr->PrePSets, Locations);
+            }
+#endif
             if (!TC.isIndirection()) {
                 continue;
             }
@@ -121,7 +131,16 @@ private:
                         addParamSet(Locations.Input, ParamDerefLoc);
                     }
                 }
-                LLVM_FALLTHROUGH;
+                if (!ParamType->isRValueReferenceType()) {
+                    addParamSet(Locations.Input, ParamLoc);
+                }
+                break;
+
+            case TypeCategory::Aggregate:
+                expandParameter(ParamDerefLoc, PointeeType, ParamType, &ContractAttr->PrePSets.at(ParamLoc),
+                    ContractAttr->PrePSets, Locations);
+                [[fallthrough]];
+
             default:
                 if (!ParamType->isRValueReferenceType()) {
                     addParamSet(Locations.Input, ParamLoc);
@@ -155,6 +174,14 @@ private:
 
                 ContractAttr->PrePSets.emplace(DerefThis, DerefThisPSet);
                 addParamSet(Locations.Input, DerefThis);
+            } else {
+                const bool IsConstructor = isa<CXXConstructorDecl>(MD);
+
+                // If the type of *this is not an Aggregate, treat each nonstatic data member m of *this as a parameter
+                // passed by value if in a constructor (and on function entry they are treated as described in §2.4.2)
+                // or by reference otherwise (and on function entry they are treated as described in this section).
+                expandParameter(DerefThis, ClassTy, (IsConstructor ? ClassTy : MD->getThisType()), &ThisPSet,
+                    ContractAttr->PrePSets, Locations);
             }
         }
 
@@ -169,6 +196,68 @@ private:
                 = adjustParamContracts(LifetimePre, FD, PVD, ContractAttr->PrePSets, ContractAttr->PrePSets);
             if (Range.isValid()) {
                 Reporter.warnUnsupportedExpr(Range);
+            }
+        }
+    }
+
+    // p2.5.1: Expand parameters and returns: Aggregates, nonstatic data members, and Pointer dereference locations
+    void expandParameter(const ContractVariable& V, const QualType Ty, const QualType AggTy,
+        const ContractPSet* AggPset, LifetimeContractAttr::PointsToMap& PMap, ParamDerivedLocations& Locations) const
+    {
+        const auto AggTC = classifyTypeCategory(AggTy);
+
+        for (const auto* Member : Ty->getAsCXXRecordDecl()->fields()) {
+            ContractVariable VV = V;
+            VV.addFieldRef(Member);
+
+            const auto MemberTC = classifyTypeCategory(Member->getType());
+            if (MemberTC.isAggregate()) {
+                // Apply recursively to nested Aggregates’ by-value data members
+                expandParameter(VV, Member->getType(), AggTy, AggPset, PMap, Locations);
+                continue;
+            }
+
+            if (MemberTC.isPointer()) {
+                if (AggTC.isPointer()) { // foo(Agg* agg) -> foo(int** agg_m)
+                    PMap.emplace(VV, *AggPset);
+                } else { // foo(Agg agg) -> foo(int* agg_m)
+                    ContractVariable DerefLoc(VV);
+                    DerefLoc.deref();
+                    PMap.emplace(VV, ContractPSet(DerefLoc, isNullableType(Member->getType())));
+                }
+
+                if (!AggTy->isRValueReferenceType()) {
+                    addParamSet(Locations.Input, VV);
+                }
+                continue;
+            }
+
+            if (!AggTC.isPointer()) {
+                continue;
+            }
+
+            // FD is owner or value
+            // 2.5.3
+            // pset(agg.p) = pset(agg) if agg is a pointer
+            PMap.emplace(VV, *AggPset);
+            if (MemberTC.isValue()) {
+                if (!AggTy->isRValueReferenceType()) {
+                    addParamSet(Locations.Input, VV);
+                }
+                continue;
+            }
+
+            // foo(Owner& agg_m)
+            ContractVariable DerefLoc = VV.derefCopy();
+            PMap.emplace(DerefLoc, *AggPset);
+            if (AggTy->isLValueReferenceType()) {
+                if (Member->getType().isConstQualified()) {
+                    addParamSet(Locations.InputWeak, VV);
+                    addParamSet(Locations.InputWeak, DerefLoc);
+                } else {
+                    addParamSet(Locations.Input, VV);
+                    addParamSet(Locations.Input, DerefLoc);
+                }
             }
         }
     }
@@ -199,8 +288,13 @@ private:
             return Ret;
         };
 
-        if (classifyTypeCategory(FD->getReturnType()) == TypeCategory::Pointer) {
+        const auto RetTC = classifyTypeCategory(FD->getReturnType());
+        if (RetTC.isPointer()) {
             Locations.Output.push_back(ContractVariable::returnVal());
+        } else if (RetTC.isAggregate()) {
+            // p2.5.1: For an Aggregate return value returned by value (not by * or &), treat it as if it were multiple
+            // return values, one for each element m of agg that is a Pointer
+            // TODO
         }
 
         for (const ContractVariable& CV : Locations.Output) {
@@ -272,7 +366,24 @@ private:
         if (CV == ContractVariable::returnVal()) {
             return FD->getReturnType();
         }
-        return Variable(CV, FD).getType();
+
+        const Variable V = Variable(CV, FD);
+        QualType Ty = V.getType();
+
+        // consider foo(Agg*) -> foo(int* agg_m)
+        if (V.isField() && !classifyTypeCategory(Ty).isPointer()) {
+            const QualType Base = V.getBaseType();
+
+            if (const auto PT = Base->getPointeeType(); !PT.isNull()) {
+                if (PT.isConstQualified()) {
+                    Ty = ASTCtxt.getConstType(Ty);
+                }
+
+                Ty = ASTCtxt.getPointerType(Ty);
+            }
+        }
+
+        return Ty;
     }
 
     static void addParamSet(std::vector<ContractVariable>& To, const ContractVariable& Var) { To.push_back(Var); }

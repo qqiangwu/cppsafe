@@ -13,6 +13,7 @@
 #include "Lifetime.h"
 #include "LifetimePset.h"
 #include "cppsafe/util/type.h"
+#include <clang/Basic/SourceLocation.h>
 
 namespace clang {
 class CFGBlock;
@@ -35,6 +36,8 @@ public:
     virtual PSet getPSet(const Expr* E, bool AllowNonExisting = false) const = 0;
     virtual PSet getPSet(const Variable& V) const = 0;
     virtual PSet getPSet(const PSet& P) const = 0;
+
+    virtual void debugPmap(SourceRange Range) const = 0;
 
     virtual PSet derefPSet(const PSet& P) const = 0;
 

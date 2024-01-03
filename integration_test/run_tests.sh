@@ -30,11 +30,8 @@ function detect_inc() {
 
 detect_inc
 
-bash test.sh
-bash test.sh use-after-move.cpp
-bash test.sh debug_functions.cpp
-
-bash test.sh annotation_lifetime_const.cpp
-bash test.sh annotation_owner_and_pointer.cpp
-bash test.sh annotation_lifetime_inout.cpp
-bash test.sh annotation_contract.cpp
+for cpp in *.cpp;
+do
+    echo "test ${cpp}"
+    bash test.sh "${cpp}"
+done

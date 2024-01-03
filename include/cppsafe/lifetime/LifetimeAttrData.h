@@ -82,6 +82,15 @@ struct ContractVariable {
         return *this;
     }
 
+    ContractVariable derefCopy(int Num = 1) const
+    {
+        ContractVariable V = *this;
+        while (Num--) {
+            V.FDs.push_back(nullptr);
+        }
+        return V;
+    }
+
 protected:
     llvm::PointerUnion<const VarDecl*, const Expr*, const RecordDecl*> Var;
 

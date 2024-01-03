@@ -493,12 +493,10 @@ void example_2_6_2_3() {
     sv = add(sv, sv);   // instantiates add<string_view> expected-note {{in instantiation}}
 }
 
-#if 0
 // https://godbolt.org/z/wncC9a
 struct X { int a, b; };
 
 int&  example_2_6_2_4(X& x) { return x.a; }		// ok, pset(ret) == pset(x)
-#endif
 
 #if 0
 // The link in the paper (https://godbolt.org/z/AqXDYp) does not work with flow-sensitive analysis because we cannot deduce

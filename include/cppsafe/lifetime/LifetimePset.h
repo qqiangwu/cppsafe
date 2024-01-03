@@ -102,6 +102,23 @@ public:
         return getTypeAndOrder(Order);
     }
 
+    // Return the type of the base object of this variable, ignoring all
+    // fields and derefs.
+    // \post never returns a null QualType
+    QualType getBaseType() const
+    {
+        assert(!isReturnVal() && "We don't store types of return values here");
+        if (const auto* VD = asVarDecl()) {
+            return VD->getType();
+        } else if (const MaterializeTemporaryExpr* MT = asTemporary()) {
+            return MT->getType();
+        } else if (const RecordDecl* RD = asThis()) {
+            return RD->getASTContext().getPointerType(RD->getASTContext().getRecordType(RD));
+        } else {
+            llvm_unreachable("invalid state");
+        }
+    }
+
     bool isField() const { return !FDs.empty() && FDs.back(); }
 
     bool isThisPointer() const { return asThis(); }
@@ -194,23 +211,6 @@ private:
     Variable(const RecordDecl* RD)
         : ContractVariable(RD)
     {
-    }
-
-    // Return the type of the base object of this variable, ignoring all
-    // fields and derefs.
-    // \post never returns a null QualType
-    QualType getBaseType() const
-    {
-        assert(!isReturnVal() && "We don't store types of return values here");
-        if (const auto* VD = asVarDecl()) {
-            return VD->getType();
-        } else if (const MaterializeTemporaryExpr* MT = asTemporary()) {
-            return MT->getType();
-        } else if (const RecordDecl* RD = asThis()) {
-            return RD->getASTContext().getPointerType(RD->getASTContext().getRecordType(RD));
-        } else {
-            llvm_unreachable("invalid state");
-        }
     }
 
     QualType getTypeAndOrder(int& Order) const
