@@ -1,5 +1,6 @@
 #include "cppsafe/lifetime/contract/Parser.h"
 #include "cppsafe/lifetime/LifetimeAttrData.h"
+#include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
 
 #include <clang/AST/Attr.h>
@@ -87,7 +88,7 @@ static std::optional<ContractPSet> lookupVar(const FunctionDecl* FD, StringRef E
     V.deref(Deref);
 
     if (Lookup) {
-        const auto It2 = Lookup->find(*It);
+        const auto It2 = Lookup->find(V);
         if (It2 == Lookup->end()) {
             return {};
         }

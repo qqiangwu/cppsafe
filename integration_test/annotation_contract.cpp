@@ -67,6 +67,9 @@ struct Out
 [[clang::annotate("gsl::lifetime_post", Return, "q")]]
 int* Bar(int* p, int* q [[clang::annotate("gsl::lifetime_pre", "p")]]);
 
+[[clang::annotate("gsl::lifetime_post", Return, "*p")]]
+double* Bar2(int*&& p);
+
 void test_post()
 {
     __lifetime_contracts(&Out::Get);
@@ -84,4 +87,9 @@ void test_post()
     // expected-warning@-1 {{pset(Pre(p)) = ((null), *p)}}
     // expected-warning@-2 {{pset(Pre(q)) = ((null), *p)}}
     // expected-warning@-3 {{pset(Post((return value))) = ((null), *p)}}
+
+    __lifetime_contracts(&Bar2);
+    // expected-warning@-1 {{pset(Pre(p)) = (*p)}}
+    // expected-warning@-2 {{pset(Pre(*p)) = ((null), **p)}}
+    // expected-warning@-3 {{pset(Post((return value))) = ((null), **p)}}
 }

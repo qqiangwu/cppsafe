@@ -819,7 +819,11 @@ public:
                 }
 
                 if (V.getCaptureKind() == LCK_ByRef) {
-                    PS.merge(getPSet(VD));
+                    if (classifyTypeCategory(VD->getType()).isIndirection()) {
+                        PS.merge(getPSet(VD));
+                    } else {
+                        PS.merge(PSet::singleton(VD));
+                    }
                     continue;
                 }
 
