@@ -530,7 +530,7 @@ public:
         if (TC == TypeCategory::Owner || Ctor->isCopyOrMoveConstructor()
             || (ParmTy->isReferenceType() && ParmTy->getPointeeType().isConstQualified())) {
             setPSet(E, derefPSet(getPSet(E->getArg(0))));
-        } else if (TC == TypeCategory::Pointer) {
+        } else if (TC == TypeCategory::Pointer || isa<CXXNullPtrLiteralExpr>(E->getArg(0))) {
             setPSet(E, getPSet(E->getArg(0)));
         } else {
             setPSet(E, PSet::invalid(InvalidationReason::NotInitialized(E->getSourceRange(), CurrentBlock)));
@@ -703,6 +703,10 @@ public:
 #endif
             return {};
         } else { // NOLINT(readability-else-after-return)
+            if (isa<CXXNullPtrLiteralExpr>(E)) {
+                return PSet::null(NullReason::nullptrConstant(E->getSourceRange(), CurrentBlock));
+            }
+
             auto I = PSetsOfExpr.find(E);
             if (I != PSetsOfExpr.end()) {
                 return I->second;
@@ -809,7 +813,7 @@ public:
 
         for (const auto V : L->captures()) {
             if (V.capturesThis()) {
-                const auto *RD = cast<CXXMethodDecl>(AnalyzedFD)->getParent();
+                const auto* RD = cast<CXXMethodDecl>(AnalyzedFD)->getParent();
                 PS.merge(PSet::singleton(Variable::thisPointer(RD), 1));
                 continue;
             }
