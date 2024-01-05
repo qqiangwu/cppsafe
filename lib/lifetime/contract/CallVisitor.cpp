@@ -4,6 +4,7 @@
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
 
+#include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
@@ -180,9 +181,14 @@ const Expr* CallVisitor::getObjectNeedReset(const CallExpr* CallE)
     // TODO: check precondition
     if (const auto* MC = llvm::dyn_cast<CXXMemberCallExpr>(CallE)) {
         const auto* MD = MC->getMethodDecl();
-        if (MD->isInstance() && MD->getDeclName().isIdentifier()) {
-            if (MD->getName() == "reset" || MD->getName() == "clear") {
+        if (MD->isInstance()) {
+            if (MD->hasAttr<ReinitializesAttr>()) {
                 return MC->getImplicitObjectArgument();
+            }
+            if (MD->getDeclName().isIdentifier()) {
+                if (MD->getName() == "reset" || MD->getName() == "clear") {
+                    return MC->getImplicitObjectArgument();
+                }
             }
         }
     }

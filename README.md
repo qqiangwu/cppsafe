@@ -97,3 +97,14 @@ struct Test
     int* Foo(int* x [[clang::annotate("gsl::lifetime_pre", Global)]], int* y, int** z);
 };
 ```
+
+## clang::reinitializes
+Reset a moved-from object.
+
+```C++
+class Value
+{
+public:
+    [[clang::reinitializes]] void Reset();
+};
+```
