@@ -10,10 +10,11 @@ namespace clang {
 class LifetimeContractAttr {
 public:
     using PointsToMap = std::map<ContractVariable, ContractPSet>;
-    SmallVector<const Expr*, 8> PreExprs;
-    SmallVector<const Expr*, 8> PostExprs;
+
     PointsToMap PrePSets;
     PointsToMap PostPSets;
+
+    bool Filled = false;
 };
 
 }

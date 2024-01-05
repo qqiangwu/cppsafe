@@ -11,6 +11,7 @@
 #include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
+#include "cppsafe/lifetime/contract/Annotation.h"
 #include "cppsafe/lifetime/contract/CallVisitor.h"
 #include "cppsafe/util/type.h"
 
@@ -1360,8 +1361,17 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
         }
         case CFGElement::LifetimeEnds: {
             auto Leaver = E.castAs<CFGLifetimeEnds>();
+            const auto* VD = Leaver.getVarDecl();
+            if (const auto* RD = VD->getType()->getAsCXXRecordDecl()) {
+                if (const auto* Dtor = RD->getDestructor()) {
+                    if (isAnnotatedWith(Dtor, LifetimePre)) {
+                        checkPSetValidity(getPSet(VD), Leaver.getTriggerStmt()->getEndLoc());
+                    }
+                }
+            }
+
             // Stop tracking Variables that leave scope.
-            eraseVariable(Leaver.getVarDecl(), Leaver.getTriggerStmt()->getEndLoc());
+            eraseVariable(VD, Leaver.getTriggerStmt()->getEndLoc());
             break;
         }
         case CFGElement::NewAllocator:

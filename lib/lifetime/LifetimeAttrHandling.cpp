@@ -151,7 +151,7 @@ private:
 
         // This points to deref this and this considered as input.
         // If *this is an indirection, then *this is considered as input too
-        if (const auto* MD = dyn_cast<CXXMethodDecl>(FD); MD && MD->isInstance()) {
+        if (const auto* MD = dyn_cast<CXXMethodDecl>(FD); MD && MD->isInstance() && !isa<CXXDestructorDecl>(MD)) {
             const auto* RD = dyn_cast<CXXRecordDecl>(MD->getParent());
             ContractVariable DerefThis = ContractVariable(RD).deref();
             ContractPSet ThisPSet({ DerefThis });
@@ -415,9 +415,11 @@ void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTConte
     auto* ContractAttr = getLifetimeContracts(FD);
 
     // TODO: this check is insufficient for functions like int f(int);
-    if (ContractAttr->PrePSets.empty() && ContractAttr->PostPSets.empty()) {
+    if (!ContractAttr->Filled) {
         PSetCollector Collector(FD, ASTCtxt, IsConvertible, Reporter);
         Collector.fillPSetsForDecl(ContractAttr);
+
+        ContractAttr->Filled = true;
     }
 
     if (Pre) {
