@@ -99,15 +99,15 @@ public:
         auto& E = S.getDiagnostics();
 
         WarningIds[LifetimeDiag::warn_pset_of_global] = E.getCustomDiagID(
-            DiagnosticsEngine::Warning, "the pset of '%0' must be a subset of {(static), (null)}, but is {%1}");
+            DiagnosticsEngine::Warning, "the pset of '%0' must be a subset of {(global), (null)}, but is {%1}");
         WarningIds[LifetimeDiag::warn_deref_nullptr]
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "dereferencing a%select{| possibly}0 null pointer");
         WarningIds[LifetimeDiag::warn_assign_nullptr] = E.getCustomDiagID(
             DiagnosticsEngine::Warning, "assigning a%select{| possibly}0 null pointer to a non-null object");
         WarningIds[LifetimeDiag::warn_deref_dangling]
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "dereferencing a%select{| possibly}0 dangling pointer");
-        WarningIds[LifetimeDiag::warn_use_after_move] = E.getCustomDiagID(DiagnosticsEngine::Warning,
-            "use a moved-from object");
+        WarningIds[LifetimeDiag::warn_use_after_move]
+            = E.getCustomDiagID(DiagnosticsEngine::Warning, "use a moved-from object");
         WarningIds[LifetimeDiag::warn_dangling] = E.getCustomDiagID(DiagnosticsEngine::Warning,
             "%select{passing|returning|returning}0 a%select{| possibly}2 dangling pointer%select{ as argument|| as "
             "output value '%1'}0");
@@ -118,7 +118,7 @@ public:
             "%select{passing|returning|returning}0 a pointer%select{ as argument|| as output value '%1'}0 with "
             "points-to set %2 where points-to set %3 is expected");
         WarningIds[LifetimeDiag::warn_non_static_throw] = E.getCustomDiagID(DiagnosticsEngine::Warning,
-            "throwing a pointer with points-to set %0 where points-to set ((static)) is expected");
+            "throwing a pointer with points-to set %0 where points-to set ((global)) is expected");
         WarningIds[LifetimeDiag::warn_lifetime_pointer_arithmetic]
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "pointer arithmetic disables lifetime analysis");
         WarningIds[LifetimeDiag::warn_lifetime_unsafe_cast]
@@ -168,6 +168,10 @@ public:
 
     void warnPsetOfGlobal(SourceRange Range, StringRef VariableName, std::string ActualPset) final
     {
+        if (!getOptions().LifetimeGlobal) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[warn_pset_of_global]) << VariableName << ActualPset << Range;
         }
@@ -175,6 +179,11 @@ public:
     void warnNullDangling(WarnType T, SourceRange Range, ValueSource Source, StringRef ValueName, bool Possibly) final
     {
         assert(T == WarnType::Dangling || T == WarnType::Null);
+        if (T == WarnType::Null && getOptions().NoLifetimeNull) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Warnings.at((int)T)])
                 << (int)Source << ValueName << Possibly << Range;
@@ -184,6 +193,11 @@ public:
     {
         assert((unsigned)T < sizeof(Warnings) / sizeof(Warnings[0]));
         assert(T != WarnType::Dangling && T != WarnType::Null);
+        if (T == WarnType::DerefNull && getOptions().NoLifetimeNull) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Warnings.at((int)T)]) << Possibly << Range;
         }
@@ -204,12 +218,22 @@ public:
     }
     void warnPointerArithmetic(SourceRange Range) final
     {
+        if (!getOptions().LifetimeDisabled) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_lifetime_pointer_arithmetic]);
         }
     }
     void warnUnsafeCast(SourceRange Range) final
     {
+        if (!getOptions().LifetimeDisabled) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_lifetime_unsafe_cast]);
         }

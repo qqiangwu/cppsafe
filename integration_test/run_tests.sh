@@ -35,3 +35,8 @@ do
     echo "test ${cpp}"
     bash test.sh "${cpp}"
 done
+
+bash test.sh options/warn_deref_null.cpp --Wno-lifetime-null
+bash test.sh options/warn_unsafe_cast.cpp --Wlifetime-disabled
+bash test.sh options/warn_pointer_arithmetic.cpp --Wlifetime-disabled
+bash test.sh options/warn_pset_global.cpp --Wlifetime-global

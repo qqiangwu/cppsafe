@@ -394,7 +394,7 @@ void example_2_4_9_3() {
 static int gi = 0;
 void example_2_4_10_2() {
     int i = 0;
-    throw &i;				// ERROR expected-warning {{throwing a pointer with points-to set (i) where points-to set ((static)) is expected}}
+    throw &i;				// ERROR expected-warning {{throwing a pointer with points-to set (i) where points-to set ((global)) is expected}}
     throw &gi;				// OK
 }
 

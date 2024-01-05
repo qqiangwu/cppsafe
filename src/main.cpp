@@ -18,15 +18,26 @@ static cl::desc desc(StringRef Description) { return { Description.ltrim() }; }
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static cl::OptionCategory CppSafeCategory("cppsafe options");
 
-static const cl::opt<bool> WarnLifetimeMove(
-    "Wlifetime-move", desc("check use after move"), cl::init(false), cl::cat(CppSafeCategory));
+static const cl::opt<bool> WarnNoLifetimeNull("Wno-lifetime-null",
+    desc("Disable flow-sensitive warnings about nullness of Pointers"), cl::init(false), cl::cat(CppSafeCategory));
+
+static const cl::opt<bool> WarnLifetimeGlobal("Wlifetime-global",
+    desc("Flow-sensitive analysis that requires global variables of Pointer type to always point to variables with "
+         "static lifetime"),
+    cl::init(false), cl::cat(CppSafeCategory));
+
+static const cl::opt<bool> WarnLifetimeDisabled("Wlifetime-disabled",
+    desc("Get warnings when the flow-sensitive analysis is disabled on a function due to forbidden constructs"),
+    cl::init(false), cl::cat(CppSafeCategory));
 
 class LifetimeFrontendAction : public clang::ASTFrontendAction {
 public:
     std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance&, llvm::StringRef) override
     {
         const CppsafeOptions Options {
-            .LifetimeMove = WarnLifetimeMove,
+            .NoLifetimeNull = WarnNoLifetimeNull,
+            .LifetimeDisabled = WarnLifetimeDisabled,
+            .LifetimeGlobal = WarnLifetimeGlobal,
         };
         return std::make_unique<AstConsumer>(Options);
     }

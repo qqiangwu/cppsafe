@@ -3,7 +3,9 @@
 namespace cppsafe {
 
 struct CppsafeOptions {
-    bool LifetimeMove = false;
+    bool NoLifetimeNull = false;
+    bool LifetimeDisabled = false;
+    bool LifetimeGlobal = false;
 };
 
 }
