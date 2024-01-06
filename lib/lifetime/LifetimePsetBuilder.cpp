@@ -60,6 +60,8 @@ bool isPointer(const Expr* E)
 /// For every expression whose Type is a Pointer or an Owner,
 /// we also track the pset (points-to set), e.g.
 ///  pset(&v) = {v}
+///
+/// In return statement, DeclRefExpr, LValueToRValueCast will move RefersTo to PSetsOfExpr
 class PSetsBuilder final : public ConstStmtVisitor<PSetsBuilder, void>, public PSBuilder {
     const FunctionDecl* AnalyzedFD;
     LifetimeReporterBase& Reporter;
@@ -208,20 +210,16 @@ public:
 
         if (auto* FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
             PSet Ret = BaseRefersTo;
-            Ret.addFieldRef(FD);
+
+            Ret.addFieldRefIfTypeMatch(FD);
             if (FD->getType()->isReferenceType()) {
                 // The field has reference type, apply the deref.
                 Ret = derefPSet(Ret);
                 if (!checkPSetValidity(Ret, ME->getSourceRange())) {
                     Ret = {};
                 }
-            } else {
-                // if Var of Ret contains expanded var, deref it
-                Ret = derefPSetForExpandedMember(Ret);
-                if (!checkPSetValidity(Ret, ME->getSourceRange())) {
-                    Ret = {};
-                }
             }
+
             setPSet(ME, Ret);
         } else if (isa<VarDecl>(ME->getMemberDecl())) {
             // A static data member of this class
@@ -462,7 +460,11 @@ public:
         }
 
         if (hasPSet(UO)) {
-            setPSet(UO, getPSet(UO->getSubExpr()));
+            PSet PS = getPSet(UO->getSubExpr());
+            if (!UO->isLValue() && isa<MemberExpr>(UO->getSubExpr())) {
+                PS = derefPSetForMemberIfNecessary(PS);
+            }
+            setPSet(UO, PS);
         }
     }
 
@@ -478,6 +480,9 @@ public:
         }
 
         auto RetPSet = getPSet(RetVal);
+        if (RetVal->isLValue() && isa<MemberExpr>(RetVal)) {
+            RetPSet = derefPSetForMemberIfNecessary(RetPSet);
+        }
 
         // TODO: Would be nicer if the LifetimeEnds CFG nodes would appear before
         // the ReturnStmt node
@@ -752,7 +757,7 @@ public:
     void setPSet(const PSet& LHS, PSet RHS, SourceRange Range) override;
 
     PSet derefPSet(const PSet& P) const override;
-    PSet derefPSetForExpandedMember(const PSet& P) const;
+    PSet derefPSetForMemberIfNecessary(const PSet& P) const;
 
     bool handleDebugFunctions(const CallExpr* CallE) const;
 
@@ -890,6 +895,11 @@ PSet PSetsBuilder::getPSet(const Variable& P) const
         return PSet::globalVar(false);
     }
 
+    // consider: ***v
+    if (P.getType().isNull()) {
+        return PSet::singleton(P, 1);
+    }
+
     if (P.getType()->isArrayType()) {
         // This triggers when we have an array of Pointers, and we
         // do a subscript to obtain a Pointer.
@@ -949,14 +959,14 @@ PSet PSetsBuilder::derefPSet(const PSet& PS) const
     return RetPS;
 }
 
-PSet PSetsBuilder::derefPSetForExpandedMember(const PSet& PS) const
+PSet PSetsBuilder::derefPSetForMemberIfNecessary(const PSet& PS) const
 {
     if (PS.isUnknown()) {
         return {};
     }
 
     if (PS.containsInvalid()) {
-        return {}; // Return unknown, so we don't diagnose again.
+        return PS;
     }
 
     PSet RetPS;
@@ -1147,9 +1157,16 @@ static const FunctionDecl* getFunctionDecl(const Expr* E)
         if (const auto* Tmp = dyn_cast<CXXTemporaryObjectExpr>(E)) {
             return Tmp->getConstructor();
         }
+        if (const auto* R = dyn_cast<DeclRefExpr>(E)) {
+            return dyn_cast<FunctionDecl>(R->getDecl());
+        }
 
-        return dyn_cast<FunctionDecl>(cast<DeclRefExpr>(E)->getDecl());
-    })->getCanonicalDecl();
+        return nullptr;
+    });
+
+    if (FD) {
+        FD = FD->getCanonicalDecl();
+    }
 
     return FD;
 }
@@ -1262,19 +1279,21 @@ void PSetsBuilder::debugPmap(const SourceRange Range) const
     llvm::errs() << "---\n";
     llvm::errs() << "PMap\n";
     for (const auto& [V, P] : PMap) {
-        llvm::errs() << V.getName() << "->" << P.str() << "\n";
+        llvm::errs() << "pset(" << V.getName() << ") -> " << P.str() << "\n";
     }
 
     llvm::errs() << "\nRefersTo\n";
     for (const auto& [V, P] : RefersTo) {
+        llvm::errs() << "pset(";
         V->dumpPretty(ASTCtxt);
-        llvm::errs() << "->" << P.str() << "\n";
+        llvm::errs() << ") -> " << P.str() << "\n";
     }
 
     llvm::errs() << "\nPSetsOfExpr\n";
     for (const auto& [V, P] : PSetsOfExpr) {
+        llvm::errs() << "pset(";
         V->dumpPretty(ASTCtxt);
-        llvm::errs() << "->" << P.str() << "\n";
+        llvm::errs() << ") -> " << P.str() << "\n";
     }
 }
 

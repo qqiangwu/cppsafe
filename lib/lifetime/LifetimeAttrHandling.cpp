@@ -25,6 +25,8 @@
 #include <clang/AST/Type.h>
 #include <clang/Basic/SourceLocation.h>
 #include <gsl/narrow>
+#include <range/v3/to_container.hpp>
+#include <range/v3/view/transform.hpp>
 
 #include <map>
 #include <vector>
@@ -102,8 +104,8 @@ private:
             switch (classifyTypeCategory(PointeeType)) {
             case TypeCategory::Owner: {
                 ContractAttr->PrePSets.emplace(ParamDerefLoc, ParamDerefPSet);
-                if (ParamType->isLValueReferenceType()) {
-                    if (PointeeType.isConstQualified()) {
+                if (!ParamType->isRValueReferenceType()) {
+                    if (ParamType->isLValueReferenceType() && PointeeType.isConstQualified()) {
                         addParamSet(Locations.InputWeak, ParamLoc);
                         addParamSet(Locations.InputWeak, ParamDerefLoc);
                     } else {
@@ -239,24 +241,30 @@ private:
             // FD is owner or value
             // 2.5.3
             // pset(agg.p) = pset(agg) if agg is a pointer
-            PMap.emplace(VV, *AggPset);
             if (MemberTC.isValue()) {
+                PMap.emplace(VV, *AggPset);
                 if (!AggTy->isRValueReferenceType()) {
                     addParamSet(Locations.Input, VV);
                 }
                 continue;
             }
 
-            // foo(Owner& agg_m)
-            ContractVariable DerefLoc = VV.derefCopy();
-            PMap.emplace(DerefLoc, *AggPset);
-            if (AggTy->isLValueReferenceType()) {
-                if (Member->getType().isConstQualified()) {
+            // foo(Owner& agg_m): pset(agg_m) = {**agg}
+            ContractPSet PS = *AggPset;
+            PS.Vars = AggPset->Vars | ranges::views::transform([](const auto& V) { return V.derefCopy(); })
+                | ranges::to<std::set>();
+
+            // if agg is a pointer and contains a owner member, add pset(*agg) = {**agg}
+            for (const auto& V : AggPset->Vars) {
+                PMap.emplace(V, V.derefCopy());
+            }
+
+            PMap.emplace(VV, PS);
+            if (!AggTy->isRValueReferenceType()) {
+                if (AggTy->isLValueReferenceType() && AggTy.isConstQualified()) {
                     addParamSet(Locations.InputWeak, VV);
-                    addParamSet(Locations.InputWeak, DerefLoc);
                 } else {
                     addParamSet(Locations.Input, VV);
-                    addParamSet(Locations.Input, DerefLoc);
                 }
             }
         }
@@ -371,7 +379,7 @@ private:
         QualType Ty = V.getType();
 
         // consider foo(Agg*) -> foo(int* agg_m)
-        if (V.isField() && !classifyTypeCategory(Ty).isPointer()) {
+        if (V.isField() && !classifyTypeCategory(Ty).isIndirection()) {
             const QualType Base = V.getBaseType();
 
             if (const auto PT = Base->getPointeeType(); !PT.isNull()) {

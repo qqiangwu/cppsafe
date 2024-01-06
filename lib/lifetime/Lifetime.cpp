@@ -321,9 +321,12 @@ static void createEntryPsetsForMembers(const CXXMethodDecl* Method, PSetsMap& PM
                 // Each Owner/Pointer points to deref of itself.
                 Variable V = Variable::thisPointer(RD).deref();
                 V.addFieldRef(Field);
-                Variable DerefV = V;
-                DerefV.deref();
-                PMap[V] = PSet::singleton(DerefV);
+                // if mentioned in pre-conditions, ignore
+                if (!PMap.contains(V)) {
+                    Variable DerefV = V;
+                    DerefV.deref();
+                    PMap[V] = PSet::singleton(DerefV);
+                }
                 break;
             }
             default:
@@ -345,7 +348,7 @@ void LifetimeContext::traverseBlocks()
 
     ForwardDataflowWorklist WorkList(*ControlFlowGraph, AC);
     // The entry block introduces the function parameters into the psets.
-    auto *Start = &ControlFlowGraph->getEntry();
+    auto* Start = &ControlFlowGraph->getEntry();
     auto& BC = getBlockContext(Start);
     // ExitPSets are the function parameters.
     getLifetimeContracts(BC.ExitPMap, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter);

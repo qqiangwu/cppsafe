@@ -30,7 +30,7 @@ function detect_inc() {
 
 detect_inc
 
-for cpp in *.cpp hack/*.cpp;
+for cpp in *.cpp hack/*.cpp case/*.cpp;
 do
     echo "test ${cpp}"
     bash test.sh "${cpp}"

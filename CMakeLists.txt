@@ -47,11 +47,13 @@ include(cmake/conan.cmake)
 find_package(LLVM REQUIRED)
 find_package(Microsoft.GSL REQUIRED)
 find_package(fmt REQUIRED)
+find_package(range-v3 REQUIRED)
 
 add_library(cppsafe_deps INTERFACE)
 target_link_libraries(cppsafe_deps INTERFACE clangTooling)
 target_link_libraries(cppsafe_deps INTERFACE Microsoft.GSL::GSL)
 target_link_libraries(cppsafe_deps INTERFACE fmt::fmt)
+target_link_libraries(cppsafe_deps INTERFACE range-v3::range-v3)
 
 # LIB
 add_library(cppsafe_lib ${CMAKE_SOURCE_DIR}/lib/AstConsumer.cpp

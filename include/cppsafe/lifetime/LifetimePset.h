@@ -222,15 +222,19 @@ private:
             Order = 0;
         }
 
-        for (auto It = FDs.begin(); It != FDs.end(); ++It) {
-            if (*It) {
-                Base = (*It)->getType();
+        for (const auto* FD : FDs) {
+            if (FD) {
+                Base = FD->getType();
                 if (Order == -1 && classifyTypeCategory(Base) == TypeCategory::Owner) {
                     Order = 0;
                 }
             } else {
                 // Dereference the current pointer/owner
-                Base = getPointeeType(Base);
+                // consider: ****v
+                if (!Base.isNull()) {
+                    Base = getPointeeType(Base);
+                }
+
                 if (Order >= 0) {
                     ++Order;
                 }
@@ -628,11 +632,20 @@ public:
         Vars.insert(Var);
     }
 
-    void addFieldRef(const FieldDecl* FD)
+    void addFieldRefIfTypeMatch(const FieldDecl* FD)
     {
         std::set<Variable> NewVars;
         for (auto Var : Vars) {
-            Var.addFieldRef(FD);
+            if (const auto Ty = Var.getType(); !Ty.isNull()) {
+                if (const auto* RD = Ty->getAsCXXRecordDecl()) {
+                    if (FD->getParent() == RD
+                        || (RD->hasDefinition() && RD->isDerivedFrom(dyn_cast<CXXRecordDecl>(FD->getParent())))
+                        || dyn_cast<CXXRecordDecl>(FD->getParent())->isDerivedFrom(RD)) {
+                        Var.addFieldRef(FD);
+                    }
+                }
+            }
+
             NewVars.insert(Var);
         }
         Vars = NewVars;
