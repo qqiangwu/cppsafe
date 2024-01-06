@@ -108,3 +108,18 @@ public:
     [[clang::reinitializes]] void Reset();
 };
 ```
+
+# Difference from the original implementation
+## Output variable
+```
+bool foo(int** out)
+{
+    if (cond) {
+        // pset(*out) = {invalid}, we allow it, since it's so common
+        return false;
+    }
+
+    *out = new int{};
+    return true;
+}
+```

@@ -1416,6 +1416,12 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
             }
             auto OutVarIt = PMap.find(VarToPSet.first);
             assert(OutVarIt != PMap.end());
+
+            // HACK: output variable kept invalid on error path
+            if (OutVarIt->second.containsInvalid()) {
+                OutVarIt->second.removeEverythingButNull();
+            }
+
             OutVarIt->second.checkSubstitutableFor(VarToPSet.second, getSourceRange(B.back()), Reporter,
                 ValueSource::OutputParam, VarToPSet.first.getName());
         }
