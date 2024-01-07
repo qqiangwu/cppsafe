@@ -3,18 +3,26 @@
 #include "cppsafe/lifetime/Lifetime.h"
 
 #include <clang/AST/Decl.h>
+#include <clang/AST/DeclGroup.h>
+#include <clang/AST/Expr.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/AST/Type.h>
 #include <clang/Basic/DiagnosticIDs.h>
+#include <clang/Basic/LLVM.h>
+#include <clang/Basic/SourceLocation.h>
 #include <clang/Basic/SourceManager.h>
+#include <clang/Basic/Specifiers.h>
 #include <clang/Sema/Overload.h>
+#include <clang/Sema/Sema.h>
 #include <clang/Sema/SemaConsumer.h>
 #include <gsl/assert>
 #include <gsl/pointers>
 
 #include <array>
 #include <cassert>
+#include <map>
 #include <set>
+#include <string>
 
 using namespace clang;
 

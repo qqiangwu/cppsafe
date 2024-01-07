@@ -1,13 +1,17 @@
 #include "cppsafe/AstConsumer.h"
 #include "cppsafe/Options.h"
 
-#include <clang/Frontend/FrontendActions.h>
+#include <clang/AST/ASTConsumer.h>
+#include <clang/Frontend/FrontendAction.h>
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
+#include <llvm/ADT/StringRef.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Support/InitLLVM.h>
 #include <llvm/Support/WithColor.h>
+
+#include <memory>
 
 using namespace clang::tooling;
 using namespace llvm;

@@ -1,0 +1,7 @@
+---
+Checks:
+  -*
+  abseil-cleanup-ctad
+InheritParentConfig: false
+ExtraArgsBefore:
+  - -w

@@ -151,6 +151,7 @@ public:
 
         // Either the fields is a field of this class, or of a base class
         // or of a derived class (in case of static up-cast).
+        // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
         assert(FD->getParent() == RD || RD->isDerivedFrom(dyn_cast<CXXRecordDecl>(FD->getParent()))
             || dyn_cast<CXXRecordDecl>(FD->getParent())->isDerivedFrom(RD));
 #endif

@@ -23,12 +23,15 @@
 #include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
 #include <clang/AST/Type.h>
+#include <clang/Basic/LLVM.h>
+#include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/SourceLocation.h>
-#include <gsl/narrow>
-#include <range/v3/to_container.hpp>
+#include <gsl/util>
+#include <range/v3/range/conversion.hpp>
 #include <range/v3/view/transform.hpp>
 
 #include <map>
+#include <set>
 #include <vector>
 
 namespace clang::lifetime {
@@ -72,6 +75,7 @@ private:
     // p2.5.1: Expand parameters and returns: Aggregates, nonstatic data members, and Pointer dereference locations
     // p2.5.2: Create the input sets
     // p2.5.4: Create the output sets
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void fillPreConditions(LifetimeContractAttr* ContractAttr, ParamDerivedLocations& Locations) const
     {
         // Fill default preconditions and collect data for
@@ -81,7 +85,7 @@ private:
             const TypeClassification TC = classifyTypeCategory(ParamType);
 
 // value expansion is not handled well
-#if 0
+#ifdef NOT_IMPLEMENTED
             if (TC.isAggregate()) {
                 expandParameter(
                     ContractVariable(PVD), ParamType, ParamType, nullptr, ContractAttr->PrePSets, Locations);
@@ -155,8 +159,8 @@ private:
         // If *this is an indirection, then *this is considered as input too
         if (const auto* MD = dyn_cast<CXXMethodDecl>(FD); MD && MD->isInstance() && !isa<CXXDestructorDecl>(MD)) {
             const auto* RD = dyn_cast<CXXRecordDecl>(MD->getParent());
-            ContractVariable DerefThis = ContractVariable(RD).deref();
-            ContractPSet ThisPSet({ DerefThis });
+            const ContractVariable DerefThis = ContractVariable(RD).deref();
+            const ContractPSet ThisPSet({ DerefThis });
             ContractAttr->PrePSets.emplace(ContractVariable(RD), ThisPSet);
             addParamSet(Locations.Input, ContractVariable(RD));
 
@@ -203,6 +207,7 @@ private:
     }
 
     // p2.5.1: Expand parameters and returns: Aggregates, nonstatic data members, and Pointer dereference locations
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void expandParameter(const ContractVariable& V, const QualType Ty, const QualType AggTy,
         const ContractPSet* AggPset, LifetimeContractAttr::PointsToMap& PMap, ParamDerivedLocations& Locations) const
     {
@@ -360,14 +365,14 @@ private:
         return Guide->getDeducedTemplate()->getTemplateParameters()->size();
     }
 
-    bool canAssign(QualType From, QualType To) const
+    bool canAssign(const QualType From, const QualType To) const
     {
-        QualType FromPointee = getPointeeType(From);
+        const QualType FromPointee = getPointeeType(From);
         if (FromPointee.isNull()) {
             return false;
         }
 
-        QualType ToPointee = getPointeeType(To);
+        const QualType ToPointee = getPointeeType(To);
         if (ToPointee.isNull()) {
             return false;
         }
@@ -430,7 +435,7 @@ void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTConte
 
     // TODO: this check is insufficient for functions like int f(int);
     if (!ContractAttr->Filled) {
-        PSetCollector Collector(FD, ASTCtxt, IsConvertible, Reporter);
+        const PSetCollector Collector(FD, ASTCtxt, IsConvertible, Reporter);
         Collector.fillPSetsForDecl(ContractAttr);
 
         ContractAttr->Filled = true;
@@ -438,7 +443,7 @@ void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTConte
 
     if (Pre) {
         for (const auto& Pair : ContractAttr->PrePSets) {
-            Variable V(Pair.first, FD);
+            const Variable V(Pair.first, FD);
             PSet PS(Pair.second, FD);
             if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(V.asVarDecl())) {
                 // HACK: __builtin_va_arg

@@ -15,20 +15,33 @@
 #include "cppsafe/lifetime/contract/CallVisitor.h"
 #include "cppsafe/util/type.h"
 
-#include "clang/AST/Attr.h"
-#include "clang/AST/DeclTemplate.h"
-#include "clang/AST/ExprCXX.h"
-#include "clang/AST/StmtVisitor.h"
-#include "clang/Analysis/CFG.h"
-#include "clang/Basic/LLVM.h"
-#include "clang/Lex/Lexer.h"
+#include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
 #include <clang/AST/DeclCXX.h>
+#include <clang/AST/DeclTemplate.h>
 #include <clang/AST/Expr.h>
+#include <clang/AST/ExprCXX.h>
+#include <clang/AST/OperationKinds.h>
+#include <clang/AST/Stmt.h>
+#include <clang/AST/StmtVisitor.h>
+#include <clang/AST/Type.h>
+#include <clang/Analysis/CFG.h>
+#include <clang/Basic/LLVM.h>
 #include <clang/Basic/Lambda.h>
 #include <clang/Basic/SourceLocation.h>
+#include <clang/Lex/Lexer.h>
+#include <llvm/ADT/APInt.h>
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/StringSwitch.h>
+#include <llvm/Support/ErrorHandling.h>
+#include <llvm/Support/raw_ostream.h>
 
+#include <cassert>
+#include <functional>
 #include <map>
+#include <optional>
+#include <string>
+#include <utility>
 
 namespace clang::lifetime {
 
@@ -200,7 +213,7 @@ public:
 
     void VisitMemberExpr(const MemberExpr* ME)
     {
-        PSet BaseRefersTo = getPSet(ME->getBase());
+        const PSet BaseRefersTo = getPSet(ME->getBase());
         // Make sure that derefencing a dangling pointer is diagnosed unless
         // the member is a member function. In that case, the invalid
         // base will be diagnosed in VisitCallExpr().
@@ -281,7 +294,7 @@ public:
 
     void VisitMaterializeTemporaryExpr(const MaterializeTemporaryExpr* E)
     {
-        PSet Singleton = PSet::singleton(E);
+        const PSet Singleton = PSet::singleton(E);
         setPSet(E, Singleton);
         if (hasPSet(E->getSubExpr())) {
             auto TC = classifyTypeCategory(E->getSubExpr()->getType());
@@ -417,8 +430,8 @@ public:
             // Do we need to handle raw pointers annotated as owners?
             if (isPointer(BO)) {
                 // This assignment updates a Pointer.
-                SourceRange Range = BO->getRHS()->getSourceRange();
-                PSet LHS = handlePointerAssign(BO->getLHS()->getType(), getPSet(BO->getRHS()), Range);
+                const SourceRange Range = BO->getRHS()->getSourceRange();
+                const PSet LHS = handlePointerAssign(BO->getLHS()->getType(), getPSet(BO->getRHS()), Range);
                 setPSet(getPSet(BO->getLHS()), LHS, Range);
             }
 
@@ -583,7 +596,7 @@ public:
     void VisitCXXDeleteExpr(const CXXDeleteExpr* DE)
     {
         if (hasPSet(DE->getArgument())) {
-            PSet PS = getPSet(DE->getArgument());
+            const PSet PS = getPSet(DE->getArgument());
             for (const auto& Var : PS.vars()) {
                 // TODO: diagnose if we are deleting the buffer of on owner?
                 invalidateVar(Var, InvalidationReason::Deleted(DE->getSourceRange(), CurrentBlock));
@@ -599,7 +612,7 @@ public:
         if (!isPointer(TE->getSubExpr())) {
             return;
         }
-        PSet ThrownPSet = getPSet(TE->getSubExpr());
+        const PSet ThrownPSet = getPSet(TE->getSubExpr());
         if (!ThrownPSet.isGlobal()) {
             Reporter.warnNonStaticThrow(TE->getSourceRange(), ThrownPSet.str());
         }
@@ -663,8 +676,8 @@ public:
     // MaterializeTemporaryExpr without extending decl.
     void eraseVariable(const VarDecl* VD, SourceRange Range)
     {
-        InvalidationReason Reason = VD ? InvalidationReason::PointeeLeftScope(Range, CurrentBlock, VD)
-                                       : InvalidationReason::TemporaryLeftScope(Range, CurrentBlock);
+        const InvalidationReason Reason = VD ? InvalidationReason::PointeeLeftScope(Range, CurrentBlock, VD)
+                                             : InvalidationReason::TemporaryLeftScope(Range, CurrentBlock);
         if (VD) {
             PMap.erase(VD);
             invalidateVar(VD, Reason);
@@ -678,7 +691,7 @@ public:
             } else {
                 const auto& Var = I->first;
                 auto& Pset = I->second;
-                bool PsetContainsTemporary
+                const bool PsetContainsTemporary
                     = llvm::any_of(Pset.vars(), [VD](const Variable& V) { return V.isTemporaryExtendedBy(VD); });
                 if (PsetContainsTemporary) {
                     setPSet(PSet::singleton(Var), PSet::invalid(Reason), Reason.getRange());
@@ -781,7 +794,7 @@ public:
     {
         // TODO: handle DecompositionDecl.
         const Expr* Initializer = VD->getInit();
-        SourceRange Range = VD->getSourceRange();
+        const SourceRange Range = VD->getSourceRange();
 
         switch (classifyTypeCategory(VD->getType())) {
         case TypeCategory::Pointer: {
@@ -994,14 +1007,14 @@ void PSetsBuilder::setPSet(const PSet& LHS, PSet RHS, SourceRange Range)
     // Assumption: global Pointers have a pset that is a subset of {static,
     // null}
     if (LHS.isGlobal() && !RHS.isUnknown() && !RHS.isGlobal() && !RHS.isNull()) {
-        StringRef SourceText = Lexer::getSourceText(
+        const StringRef SourceText = Lexer::getSourceText(
             CharSourceRange::getTokenRange(Range), ASTCtxt.getSourceManager(), ASTCtxt.getLangOpts());
         Reporter.warnPsetOfGlobal(Range, SourceText, RHS.str());
     }
 
     DBG("PMap[" << LHS.str() << "] = " << RHS.str() << "\n");
     if (LHS.vars().size() == 1) {
-        Variable Var = *LHS.vars().begin();
+        const Variable Var = *LHS.vars().begin();
         RHS.addReasonTarget(Var);
         auto I = PMap.find(Var);
         if (I != PMap.end()) {
@@ -1083,7 +1096,7 @@ void PSetsBuilder::updatePSetsFromCondition(
         return;
     }
     if (const auto* BO = dyn_cast<BinaryOperator>(E)) {
-        BinaryOperator::Opcode OC = BO->getOpcode();
+        const BinaryOperator::Opcode OC = BO->getOpcode();
         if (OC != BO_NE && OC != BO_EQ) {
             return;
         }
@@ -1114,7 +1127,7 @@ void PSetsBuilder::updatePSetsFromCondition(
             return;
         }
 
-        Variable V = *Ref.vars().begin();
+        const Variable V = *Ref.vars().begin();
         Variable DerefV = V;
         DerefV.deref();
         PSet PS = getPSet(V);
@@ -1210,8 +1223,9 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
             }
             Set = getPSet(Set);
         }
-        StringRef SourceText = Lexer::getSourceText(CharSourceRange::getTokenRange(CallE->getArg(0)->getSourceRange()),
-            ASTCtxt.getSourceManager(), ASTCtxt.getLangOpts());
+        const StringRef SourceText
+            = Lexer::getSourceText(CharSourceRange::getTokenRange(CallE->getArg(0)->getSourceRange()),
+                ASTCtxt.getSourceManager(), ASTCtxt.getLangOpts());
         Reporter.debugPset(Range, SourceText, Set.str());
         return true;
     }
@@ -1256,7 +1270,7 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
             std::string KeyText = Contract + "(";
             KeyText += E.first.getName();
             KeyText += ")";
-            std::string PSetText = E.second.str();
+            const std::string PSetText = E.second.str();
             Reporter.debugPset(Range, KeyText, PSetText);
         };
         for (const auto& E : PreConditions) {
@@ -1277,7 +1291,7 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
     }
 }
 
-void PSetsBuilder::debugPmap(const SourceRange Range) const
+void PSetsBuilder::debugPmap(const SourceRange) const
 {
     llvm::errs() << "---\n";
     llvm::errs() << "PMap\n";
