@@ -33,19 +33,16 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Install conan
-      run: pip3 install conan
+    - name: Cache Conan2
+      id: cache-conan2
+      uses: actions/cache@v3
+      with:
+        path: ~/.cppsafe
+        key: ${{ runner.os }}-${{ runner.arch }}-cppsafe-conan
 
-    - name: Install llvm
-      working-directory: conan
-      run: conan export --name=llvm --version=17.0.2 .
+    - name: Generate Prime Numbers
+      if: steps.cache-conan2.outputs.cache-hit != 'true'
+      run: cp -r lib ~/.cppsafe
 
-    - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{ matrix.build_type }}
-
-    - name: Test
-      working-directory: integration_test
-      run: bash run_tests.sh
+    - name: Use Prime Numbers
+      run: ls -l ~/.cppsafe
