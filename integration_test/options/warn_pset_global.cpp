@@ -1,3 +1,5 @@
+// ARGS: --Wlifetime-global
+
 struct Test
 {
     int* p;

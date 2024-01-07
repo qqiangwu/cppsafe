@@ -1,3 +1,5 @@
+// ARGS: --Wno-lifetime-null
+
 struct Opts {
     void Foo();
 };

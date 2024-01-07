@@ -30,6 +30,9 @@ static const cl::opt<bool> WarnLifetimeDisabled("Wlifetime-disabled",
     desc("Get warnings when the flow-sensitive analysis is disabled on a function due to forbidden constructs"),
     cl::init(false), cl::cat(CppSafeCategory));
 
+static const cl::opt<bool> WarnLifetimeOutput("Wlifetime-output",
+    desc("Enforce output parameter validity check in all paths"), cl::init(false), cl::cat(CppSafeCategory));
+
 class LifetimeFrontendAction : public clang::ASTFrontendAction {
 public:
     std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance&, llvm::StringRef) override
@@ -38,6 +41,7 @@ public:
             .NoLifetimeNull = WarnNoLifetimeNull,
             .LifetimeDisabled = WarnLifetimeDisabled,
             .LifetimeGlobal = WarnLifetimeGlobal,
+            .LifetimeOutput = WarnLifetimeOutput,
         };
         return std::make_unique<AstConsumer>(Options);
     }

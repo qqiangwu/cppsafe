@@ -2,11 +2,15 @@
 #include "cppsafe/Options.h"
 #include "cppsafe/lifetime/Lifetime.h"
 
+#include <clang/AST/Decl.h>
+#include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/AST/Type.h>
 #include <clang/Basic/DiagnosticIDs.h>
 #include <clang/Basic/SourceManager.h>
 #include <clang/Sema/Overload.h>
+#include <clang/Sema/SemaConsumer.h>
 #include <gsl/assert>
+#include <gsl/pointers>
 
 #include <array>
 #include <cassert>
@@ -275,14 +279,48 @@ public:
 
 namespace cppsafe {
 
-void AstConsumer::run(const clang::FunctionDecl* Fn)
+bool AstConsumer::HandleTopLevelDecl(clang::DeclGroupRef D)
 {
     Expects(Sema != nullptr);
 
-    if (Sema->getSourceManager().isInSystemHeader(Fn->getBeginLoc())) {
-        return;
-    }
+    class Visitor : public clang::RecursiveASTVisitor<Visitor> {
+    public:
+        explicit Visitor(AstConsumer* C, clang::Sema* S)
+            : Consumer(C)
+            , S(S)
+        {
+        }
 
+        bool shouldVisitTemplateInstantiations() const { return true; }
+
+        bool VisitFunctionDecl(FunctionDecl* D)
+        {
+            if (S->getSourceManager().isInSystemHeader(D->getBeginLoc())) {
+                return false;
+            }
+
+            if (D->isTemplated()) {
+                return true;
+            }
+
+            Consumer->run(D);
+            return true;
+        }
+
+    private:
+        AstConsumer* Consumer;
+        gsl::not_null<clang::Sema*> S;
+    };
+
+    Visitor V { this, Sema };
+    for (auto* Decl : D) {
+        V.TraverseDecl(Decl);
+    }
+    return true;
+}
+
+void AstConsumer::run(const clang::FunctionDecl* Fn)
+{
     auto IsConvertible = [this, Fn](QualType From, QualType To) {
         OpaqueValueExpr Expr(Fn->getBeginLoc(), From, clang::VK_PRValue);
         const ImplicitConversionSequence ICS

@@ -111,7 +111,7 @@ public:
 
 # Difference from the original implementation
 ## Output variable
-```
+```C++
 bool foo(int** out)
 {
     if (cond) {
@@ -123,3 +123,5 @@ bool foo(int** out)
     return true;
 }
 ```
+
+You can use `--Wlifetime-output` to enable the check, which enforce `*out` is initialized in all paths.

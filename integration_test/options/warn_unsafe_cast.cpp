@@ -1,3 +1,5 @@
+// ARGS: --Wlifetime-disabled
+
 void foo(int* p)
 {
     *reinterpret_cast<double*>(p) = 0;

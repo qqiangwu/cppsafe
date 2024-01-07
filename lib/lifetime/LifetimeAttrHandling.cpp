@@ -220,13 +220,19 @@ private:
             }
 
             if (MemberTC.isPointer()) {
-                if (AggTC.isPointer()) { // foo(Agg* agg) -> foo(int** agg_m)
-                    PMap.emplace(VV, *AggPset);
-                } else { // foo(Agg agg) -> foo(int* agg_m)
-                    ContractVariable DerefLoc(VV);
-                    DerefLoc.deref();
-                    PMap.emplace(VV, ContractPSet(DerefLoc, isNullableType(Member->getType())));
+                if (AggTC.isPointer()) {
+                    // foo(Agg* agg) -> foo(int** agg_m)
+                    // pset(agg_m) = pset(agg)
+                    // PMap.emplace(VV, *AggPset);
+                    // TODO
+                    continue;
                 }
+
+                // This is not reachable now
+                // foo(Agg agg) -> foo(int* agg_m)
+                ContractVariable DerefLoc(VV);
+                DerefLoc.deref();
+                PMap.emplace(VV, ContractPSet(DerefLoc, isNullableType(Member->getType())));
 
                 if (!AggTy->isRValueReferenceType()) {
                     addParamSet(Locations.Input, VV);
@@ -435,11 +441,13 @@ void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTConte
             Variable V(Pair.first, FD);
             PSet PS(Pair.second, FD);
             if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(V.asVarDecl())) {
+                // HACK: __builtin_va_arg
+                const auto Range = PVD->getSourceRange().isValid() ? PVD->getSourceRange() : FD->getSourceRange();
                 if (!V.isField() && !V.isDeref() && PS.containsNull()) {
-                    PS.addNullReason(NullReason::parameterNull(PVD->getSourceRange(), Block));
+                    PS.addNullReason(NullReason::parameterNull(Range, Block));
                 }
                 if (PS.containsInvalid()) {
-                    PS = PSet::invalid(InvalidationReason::NotInitialized(PVD->getSourceRange(), Block));
+                    PS = PSet::invalid(InvalidationReason::NotInitialized(Range, Block));
                 }
             }
             PMap.emplace(V, PS);

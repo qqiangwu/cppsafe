@@ -62,36 +62,32 @@ void test_parameter_expansion_by_pointer()
     __lifetime_contracts(&f2);
     // expected-warning@-1 {{pset(Pre(a)) = ((null), *a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = ((null), *a)}}
-    // expected-warning@-3 {{pset(Pre((*a).p)) = ((null), *a)}}
-    // expected-warning@-4 {{pset(Post((return value))) = ((null), *a)}}
+    // expected-warning@-3 {{pset(Post((return value))) = ((global), (null))}}
 
     double d;
     Agg agg{ .p = &d};
     auto* p1 = f2(&agg);
-    __lifetime_pset(p1);  // expected-warning {{pset(p1) = (agg)}}
+    __lifetime_pset(p1);  // expected-warning {{pset(p1) = ((global))}}
 
     __lifetime_contracts(&f3);
     // expected-warning@-1 {{pset(Pre(a)) = (*a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
-    // expected-warning@-3 {{pset(Pre((*a).p)) = (*a)}}
-    // expected-warning@-4 {{pset(Post((return value))) = ((null), *a)}}
+    // expected-warning@-3 {{pset(Post((return value))) = ((global), (null))}}
     auto* p2 = f3(agg);
-    __lifetime_pset(p2);  // expected-warning {{pset(p2) = (agg)}}
+    __lifetime_pset(p2);  // expected-warning {{pset(p2) = ((global))}}
 
     __lifetime_contracts(&f4);
     // expected-warning@-1 {{pset(Pre(a)) = (*a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
-    // expected-warning@-3 {{pset(Pre((*a).p)) = (*a)}}
-    // expected-warning@-4 {{pset(Post((return value))) = ((null), *a)}}
+    // expected-warning@-3 {{pset(Post((return value))) = ((global), (null))}}
 
     auto* p3 = f4(agg);
-    __lifetime_pset(p3);  // expected-warning {{pset(p3) = (agg)}}
+    __lifetime_pset(p3);  // expected-warning {{pset(p3) = ((global))}}
 
     __lifetime_contracts(&f5);
     // expected-warning@-1 {{pset(Pre(a)) = (*a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
-    // expected-warning@-3 {{pset(Pre((*a).p)) = (*a)}}
-    // expected-warning@-4 {{pset(Post((return value))) = ((null), *a)}}
+    // expected-warning@-3 {{pset(Post((return value))) = ((null), *a)}}
 
     auto* p4 = f5(agg);
     __lifetime_pset(p4);  // expected-warning {{pset(p4) = (agg)}}
@@ -99,8 +95,7 @@ void test_parameter_expansion_by_pointer()
     __lifetime_contracts(&f6);
     // expected-warning@-1 {{pset(Pre(a)) = (*a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
-    // expected-warning@-3 {{pset(Pre((*a).p)) = (*a)}}
-    // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
+    // expected-warning@-3 {{pset(Post((return value))) = ((global), (null))}}
 
     auto* p5 = f6(agg);
     __lifetime_pset(p5);  // expected-warning {{pset(p5) = ((global))}}
@@ -111,29 +106,20 @@ void test_parameter_expansion_by_pointer_nested()
     __lifetime_contracts(&g2);
     // expected-warning@-1 {{pset(Pre(a)) = ((null), *a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = ((null), *a)}}
-    // expected-warning@-3 {{pset(Pre((*a).p)) = ((null), *a)}}
-    // expected-warning@-4 {{pset(Pre((*a).a2)) = ((null), *a)}}
-    // expected-warning@-5 {{pset(Pre((*a).a1.i)) = ((null), *a)}}
-    // expected-warning@-6 {{pset(Pre((*a).a1.p)) = ((null), *a)}}
-    // expected-warning@-7 {{pset(Post((return value))) = ((null), *a)}}
+    // expected-warning@-3 {{pset(Pre((*a).a1.i)) = ((null), *a)}}
+    // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
 
     __lifetime_contracts(&g3);
     // expected-warning@-1 {{pset(Pre(a)) = (*a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
-    // expected-warning@-3 {{pset(Pre((*a).p)) = (*a)}}
-    // expected-warning@-4 {{pset(Pre((*a).a2)) = (*a)}}
-    // expected-warning@-5 {{pset(Pre((*a).a1.i)) = (*a)}}
-    // expected-warning@-6 {{pset(Pre((*a).a1.p)) = (*a)}}
-    // expected-warning@-7 {{pset(Post((return value))) = ((null), *a)}}
+    // expected-warning@-3 {{pset(Pre((*a).a1.i)) = (*a)}}
+    // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
 
     __lifetime_contracts(&g4);
     // expected-warning@-1 {{pset(Pre(a)) = (*a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
-    // expected-warning@-3 {{pset(Pre((*a).p)) = (*a)}}
-    // expected-warning@-4 {{pset(Pre((*a).a2)) = (*a)}}
-    // expected-warning@-5 {{pset(Pre((*a).a1.i)) = (*a)}}
-    // expected-warning@-6 {{pset(Pre((*a).a1.p)) = (*a)}}
-    // expected-warning@-7 {{pset(Post((return value))) = ((null), *a)}}
+    // expected-warning@-3 {{pset(Pre((*a).a1.i)) = (*a)}}
+    // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
 }
 
 void test_parameter_expansion_this()
@@ -141,11 +127,8 @@ void test_parameter_expansion_this()
     __lifetime_contracts(&Nested::f7);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
     // expected-warning@-2 {{pset(Pre((*this).i)) = (*this)}}
-    // expected-warning@-3 {{pset(Pre((*this).p)) = (*this)}}
-    // expected-warning@-4 {{pset(Pre((*this).a2)) = (*this)}}
-    // expected-warning@-5 {{pset(Pre((*this).a1.i)) = (*this)}}
-    // expected-warning@-6 {{pset(Pre((*this).a1.p)) = (*this)}}
-    // expected-warning@-7 {{pset(Post((return value))) = ((null), *this)}}
+    // expected-warning@-3 {{pset(Pre((*this).a1.i)) = (*this)}}
+    // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
 }
 
 // https://godbolt.org/z/wncC9a

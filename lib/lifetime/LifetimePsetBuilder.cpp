@@ -210,7 +210,6 @@ public:
 
         if (auto* FD = dyn_cast<FieldDecl>(ME->getMemberDecl())) {
             PSet Ret = BaseRefersTo;
-
             Ret.addFieldRefIfTypeMatch(FD);
             if (FD->getType()->isReferenceType()) {
                 // The field has reference type, apply the deref.
@@ -897,6 +896,10 @@ PSet PSetsBuilder::getPSet(const Variable& P) const
 
     // consider: ***v
     if (P.getType().isNull()) {
+        if (P.getDerefNum() > MaxOrderDepth) {
+            return PSet::globalVar(false);
+        }
+
         return PSet::singleton(P, 1);
     }
 
@@ -1437,7 +1440,7 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
             assert(OutVarIt != PMap.end());
 
             // HACK: output variable kept invalid on error path
-            if (OutVarIt->second.containsInvalid()) {
+            if (OutVarIt->second.containsInvalid() && !Reporter.getOptions().LifetimeOutput) {
                 OutVarIt->second.removeEverythingButNull();
             }
 

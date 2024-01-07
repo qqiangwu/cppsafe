@@ -16,12 +16,13 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
 #include <llvm/ADT/StringExtras.h>
+#include <range/v3/algorithm/find_if_not.hpp>
+#include <range/v3/view/reverse.hpp>
 
 #include <map>
 #include <set>
 
-namespace clang {
-namespace lifetime {
+namespace clang::lifetime {
 
 /// A Variable can represent a base:
 /// - a local variable: Var contains a non-null VarDecl
@@ -171,6 +172,13 @@ public:
         int Order;
         getTypeAndOrder(Order);
         return Order >= 0 ? Order : 0;
+    }
+
+    unsigned getDerefNum() const
+    {
+        const auto Rev = ranges::views::reverse(FDs);
+        const auto It = ranges::find_if_not(Rev, [](const auto* F) { return F == nullptr; });
+        return It - Rev.begin();
     }
 
     std::string getName() const
@@ -706,7 +714,6 @@ private:
 
 using PSetsMap = std::map<Variable, PSet>;
 
-} // namespace lifetime
-} // namespace clang
+} // namespace clang::lifetime
 
 #endif // LLVM_CLANG_ANALYSIS_ANALYSES_LIFETIMEPSET_H
