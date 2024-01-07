@@ -1,4 +1,4 @@
-name: macOS
+name: Linux
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         build_type: [ Release ]
-        os: [macos-12]
+        os: [ubuntu-22.04]
         compiler:
           - cc: cc
             cxx: c++
@@ -33,6 +33,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
+    # Hack to deal with https://github.com/actions/runner-images/issues/8659
+    - name: Fix GCC
+      run: |
+        sudo rm -f /etc/apt/sources.list.d/ubuntu-toolchain-r-ubuntu-test-jammy.list
+        sudo apt-get update
+        sudo apt-get install -y --allow-downgrades libc6=2.35-0ubuntu3.5 libc6-dev=2.35-0ubuntu3.5 libstdc++6=12.3.0-1ubuntu1~22.04 libgcc-s1=12.3.0-1ubuntu1~22.04
 
     - name: Install conan
       run: pip3 install conan

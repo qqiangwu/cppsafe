@@ -202,6 +202,7 @@ public:
             setPSet(DeclRef, varRefersTo(VD, DeclRef->getSourceRange()));
         } else if (const auto* B = dyn_cast<BindingDecl>(DeclRef->getDecl())) {
             // TODO: support BindingDecl in Variables?
+            (void)B;
             setPSet(DeclRef, {});
         } else if (const auto* FD = dyn_cast<FieldDecl>(DeclRef->getDecl())) {
             Variable V = Variable::thisPointer(FD->getParent());

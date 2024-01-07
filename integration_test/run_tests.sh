@@ -8,12 +8,12 @@ no_err=$1
 function detect_inc() {
     inc=""
     starts_inc_lines=false
-    echo | c++ -E -Wp,-v - 2>&1 | while read line
+    echo | c++ -E -xc++ -Wp,-v - 2>&1 | while read line
     do
         if [[ $line =~ "End of search list" ]];
         then
-            export CPPSAFE_INC="${inc}"
-            break
+            echo "${inc}"
+            return
         fi
 
         if [[ $line =~ "search starts here" ]];
@@ -25,12 +25,12 @@ function detect_inc() {
         if [[ $starts_inc_lines == true ]];
         then
             incdir=$(echo ${line} | awk '{print $1}')
-            inc="${inc} -isystem=${incdir}"
+            inc="${inc} --extra-arg=-isystem${incdir}"
         fi
     done
 }
 
-detect_inc
+export CPPSAFE_INC=$(detect_inc)
 
 function run()
 {
