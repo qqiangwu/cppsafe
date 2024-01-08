@@ -30,6 +30,7 @@
 #include <range/v3/range/conversion.hpp>
 #include <range/v3/view/transform.hpp>
 
+#include <functional>
 #include <map>
 #include <set>
 #include <vector>
@@ -180,6 +181,11 @@ private:
 
                 ContractAttr->PrePSets.emplace(DerefThis, DerefThisPSet);
                 addParamSet(Locations.Input, DerefThis);
+
+                // for pointer implementation
+                if (TC.isPointer() && !isa<CXXConstructorDecl>(MD)) {
+                    expandPointerRecordThis(DerefThis, ClassTy, DerefThisPSet, ContractAttr->PrePSets);
+                }
             } else {
                 const bool IsConstructor = isa<CXXConstructorDecl>(MD);
 
@@ -285,6 +291,22 @@ private:
         }
     }
 
+    void expandPointerRecordThis(const ContractVariable& V, const QualType RecordType, const ContractPSet& AggPset,
+        LifetimeContractAttr::PointsToMap& PMap) const
+    {
+        for (const auto* Member : RecordType->getAsCXXRecordDecl()->fields()) {
+            ContractVariable VV = V;
+            VV.addFieldRef(Member);
+
+            const auto MemberTC = classifyTypeCategory(Member->getType());
+            if (MemberTC.isPointer()) {
+                // pset(agg_m) = pset(agg)
+                PMap.emplace(VV, AggPset);
+            }
+        }
+    }
+
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void fillPostConditions(LifetimeContractAttr* ContractAttr, ParamDerivedLocations& Locations) const
     {
         // p2.5.5
@@ -417,12 +439,17 @@ private:
             const QualType Base = V.getBaseType();
 
             if (const auto PT = Base->getPointeeType(); !PT.isNull()) {
-                if (PT.isConstQualified()) {
-                    Ty = ASTCtxt.getConstType(Ty);
-                } else if (const auto* MD = dyn_cast<CXXMethodDecl>(FD); MD && MD->isConst()) {
+                const bool IsConst = std::invoke([&V, PT, this] {
+                    if (PT.isConstQualified()) {
+                        return true;
+                    }
+                    const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+                    return V.isThisPointer() && MD && MD->isConst();
+                });
+
+                if (IsConst) {
                     Ty = ASTCtxt.getConstType(Ty);
                 }
-
                 Ty = ASTCtxt.getPointerType(Ty);
             }
         }
