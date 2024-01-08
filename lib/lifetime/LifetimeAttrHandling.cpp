@@ -253,7 +253,9 @@ private:
             // 2.5.3
             // pset(agg.p) = pset(agg) if agg is a pointer
             if (MemberTC.isValue()) {
-                PMap.emplace(VV, *AggPset);
+                ContractPSet PS = *AggPset;
+                PS.ContainsNull = false;
+                PMap.emplace(VV, PS);
                 if (!AggTy->isRValueReferenceType()) {
                     addParamSet(Locations.Input, VV);
                 }
@@ -262,6 +264,7 @@ private:
 
             // foo(Owner& agg_m): pset(agg_m) = {**agg}
             ContractPSet PS = *AggPset;
+            PS.ContainsNull = false;
             PS.Vars = AggPset->Vars | ranges::views::transform([](const auto& V) { return V.derefCopy(); })
                 | ranges::to<std::set>();
 
@@ -271,6 +274,7 @@ private:
             }
 
             PMap.emplace(VV, PS);
+
             if (!AggTy->isRValueReferenceType()) {
                 if (AggTy->isLValueReferenceType() && AggTy.isConstQualified()) {
                     addParamSet(Locations.InputWeak, VV);
@@ -291,11 +295,23 @@ private:
                 if (canAssign(getLocationType(CV), OutputType)) {
                     Ret.merge(ContractAttr->PrePSets.at(CV));
                 }
+
+                if (CV.isMemberExpansion()) {
+                    if (canAssign(getMemberLocationType(CV), OutputType)) {
+                        Ret.merge(ContractAttr->PrePSets.at(CV));
+                    }
+                }
             }
             if (Ret.isEmpty()) {
                 for (const ContractVariable& CV : Locations.InputWeak) {
                     if (canAssign(getLocationType(CV), OutputType)) {
                         Ret.merge(ContractAttr->PrePSets.at(CV));
+                    }
+
+                    if (CV.isMemberExpansion()) {
+                        if (canAssign(getMemberLocationType(CV), OutputType)) {
+                            Ret.merge(ContractAttr->PrePSets.at(CV));
+                        }
                     }
                 }
             }
@@ -334,7 +350,9 @@ private:
             return PVD->getType()->isRValueReferenceType();
         }
 
-        const auto* D = FunctionTemplate->getTemplatedDecl()->getParamDecl(PVD->getFunctionScopeIndex());
+        FD = FunctionTemplate->getTemplatedDecl();
+        const unsigned Idx = PVD->getFunctionScopeIndex();
+        const auto* D = Idx < FD->param_size() ? FD->getParamDecl(Idx) : FD->getParamDecl(FD->param_size() - 1);
         QualType ToCheck = D->getType();
         if (const auto* ParamExpansion = dyn_cast<PackExpansionType>(ToCheck)) {
             ToCheck = ParamExpansion->getPattern();
@@ -386,15 +404,22 @@ private:
             return FD->getReturnType();
         }
 
+        return Variable(CV, FD).getType();
+    }
+
+    QualType getMemberLocationType(const ContractVariable& CV) const
+    {
         const Variable V = Variable(CV, FD);
         QualType Ty = V.getType();
 
         // consider foo(Agg*) -> foo(int* agg_m)
-        if (V.isField() && !classifyTypeCategory(Ty).isIndirection()) {
+        if (!classifyTypeCategory(Ty).isPointer()) {
             const QualType Base = V.getBaseType();
 
             if (const auto PT = Base->getPointeeType(); !PT.isNull()) {
                 if (PT.isConstQualified()) {
+                    Ty = ASTCtxt.getConstType(Ty);
+                } else if (const auto* MD = dyn_cast<CXXMethodDecl>(FD); MD && MD->isConst()) {
                     Ty = ASTCtxt.getConstType(Ty);
                 }
 

@@ -1357,7 +1357,9 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
         switch (E.getKind()) {
         case CFGElement::Statement: {
             const Stmt* S = E.castAs<CFGStmt>().getStmt();
-            if (isa<RecoveryExpr>(S) || isa<UnresolvedLookupExpr>(S)) {
+
+            // ignore codes that have bugs
+            if (isa<RecoveryExpr>(S) || isa<UnresolvedLookupExpr>(S) || isa<UnresolvedMemberExpr>(S)) {
                 return;
             }
 

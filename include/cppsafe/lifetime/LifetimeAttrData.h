@@ -71,6 +71,8 @@ struct ContractVariable {
 
     bool isReturnVal() const { return Var.is<const Expr*>() && Var.get<const Expr*>() == nullptr; }
 
+    bool isMemberExpansion() const { return !FDs.empty() && FDs.back() != nullptr; }
+
     // Chain of field accesses starting from VD. Types must match.
     void addFieldRef(const FieldDecl* FD) { FDs.push_back(FD); }
 

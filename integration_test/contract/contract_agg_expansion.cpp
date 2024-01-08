@@ -61,7 +61,7 @@ void test_parameter_expansion_by_pointer()
 {
     __lifetime_contracts(&f2);
     // expected-warning@-1 {{pset(Pre(a)) = ((null), *a)}}
-    // expected-warning@-2 {{pset(Pre((*a).i)) = ((null), *a)}}
+    // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
     // expected-warning@-3 {{pset(Post((return value))) = ((global), (null))}}
 
     double d;
@@ -105,8 +105,8 @@ void test_parameter_expansion_by_pointer_nested()
 {
     __lifetime_contracts(&g2);
     // expected-warning@-1 {{pset(Pre(a)) = ((null), *a)}}
-    // expected-warning@-2 {{pset(Pre((*a).i)) = ((null), *a)}}
-    // expected-warning@-3 {{pset(Pre((*a).a1.i)) = ((null), *a)}}
+    // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
+    // expected-warning@-3 {{pset(Pre((*a).a1.i)) = (*a)}}
     // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
 
     __lifetime_contracts(&g3);
@@ -148,4 +148,85 @@ int& example_2_6_2_4(X& x)
 void foo(X& x, int*& p)
 {
     p = &x.a;
+}
+
+struct [[gsl::Owner(int)]] IntOwner {};
+
+struct OwnerAgg
+{
+    IntOwner o;
+};
+
+IntOwner& get1(OwnerAgg* agg);
+
+IntOwner& get2(OwnerAgg& agg);
+
+IntOwner& get3(const OwnerAgg* agg);
+
+const IntOwner& get4(OwnerAgg* agg);
+
+const IntOwner& get5(const OwnerAgg* agg);
+
+struct OwnerThis
+{
+    IntOwner o;
+
+    IntOwner& get1();
+    IntOwner& get2() const;
+
+    const IntOwner& get3();
+    const IntOwner& get4() const;
+};
+
+void test_member_owner()
+{
+    __lifetime_contracts(&get1);
+    // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
+    // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (**agg)}}
+    __lifetime_contracts(&get2);
+    // expected-warning@-1 {{pset(Pre(agg)) = (*agg)}}
+    // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (**agg)}}
+
+    __lifetime_contracts(&get3);
+    // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
+    // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
+    // expected-warning@-4 {{pset(Post((return value))) = ((global))}}
+
+    __lifetime_contracts(&get4);
+    // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
+    // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (**agg)}}
+
+    __lifetime_contracts(&get5);
+    // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
+    // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (**agg)}}
+
+    __lifetime_contracts(&OwnerThis::get1);
+    // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
+    // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
+    // expected-warning@-3 {{pset(Pre((*this).o)) = (**this)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (**this)}}
+    __lifetime_contracts(&OwnerThis::get2);
+    // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
+    // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
+    // expected-warning@-3 {{pset(Pre((*this).o)) = (**this)}}
+    // expected-warning@-4 {{pset(Post((return value))) = ((global))}}
+    __lifetime_contracts(&OwnerThis::get3);
+    // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
+    // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
+    // expected-warning@-3 {{pset(Pre((*this).o)) = (**this)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (**this)}}
+    __lifetime_contracts(&OwnerThis::get4);
+    // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
+    // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
+    // expected-warning@-3 {{pset(Pre((*this).o)) = (**this)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (**this)}}
 }
