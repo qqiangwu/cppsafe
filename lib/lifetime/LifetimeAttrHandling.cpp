@@ -126,15 +126,20 @@ private:
                     // All parameters passed by lvalue reference to non-const
                     && !isForwardingReference(FD, PVD)) {
                     // Output params are initially invalid.
-                    ContractPSet InvalidPS;
-                    InvalidPS.ContainsInvalid = true;
-                    ContractAttr->PrePSets.emplace(ParamDerefLoc, InvalidPS);
+                    ContractPSet OutParamPS;
+                    if (PointeeType->getAsCXXRecordDecl()) {
+                        OutParamPS = ParamDerefPSet;
+                        OutParamPS.ContainsNull = false;
+                    } else {
+                        OutParamPS.ContainsInvalid = true;
+                    }
+                    ContractAttr->PrePSets.emplace(ParamDerefLoc, OutParamPS);
                     addParamSet(Locations.Output, ParamDerefLoc);
                 } else {
                     ContractAttr->PrePSets.emplace(ParamDerefLoc, ParamDerefPSet);
                     // TODO: In the paper we only add derefs for references and not for
                     // other pointers. Is this intentional?
-                    if (ParamType->isLValueReferenceType()) {
+                    if (!ParamType->isRValueReferenceType()) {
                         addParamSet(Locations.Input, ParamDerefLoc);
                     }
                 }
@@ -311,7 +316,7 @@ private:
     {
         // p2.5.5
         // Compute default postconditions.
-        auto ComputeOutput = [&](QualType OutputType) {
+        auto ComputeOutput = [&](const ContractVariable& V, QualType OutputType) {
             ContractPSet Ret;
             for (const ContractVariable& CV : Locations.Input) {
                 if (canAssign(getLocationType(CV), OutputType)) {
@@ -337,6 +342,12 @@ private:
                     }
                 }
             }
+            if (Ret.isEmpty() && V.asParmVarDecl()) {
+                Variable VV(V, FD);
+                if (OutputType->getAsCXXRecordDecl()) {
+                    Ret.merge(ContractAttr->PrePSets.at(V));
+                }
+            }
             if (Ret.isEmpty()) {
                 Ret.ContainsGlobal = true;
             }
@@ -355,7 +366,7 @@ private:
         }
 
         for (const ContractVariable& CV : Locations.Output) {
-            ContractAttr->PostPSets[CV] = ComputeOutput(getLocationType(CV));
+            ContractAttr->PostPSets[CV] = ComputeOutput(CV, getLocationType(CV));
         }
 
         // Process user defined postconditions.

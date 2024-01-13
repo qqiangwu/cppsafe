@@ -334,7 +334,7 @@ void address_of_global() {
 
 void class_type_pointer() {
   my_pointer p;       // default initialization
-  __lifetime_pset(p); // expected-warning {{pset(p) = ((null))}}
+  __lifetime_pset(p); // expected-warning {{pset(p) = ((unknown))}}
 }
 
 void ref_leaves_scope() {
@@ -1050,9 +1050,7 @@ void deref_based_on_template_param() {
 }
 
 my_pointer global_pointer;
-void f(my_pointer &p) { // expected-note {{it was never initialized here}}
-  // p is a out-parameter, so its pset is {invalid}
-  (void)*p;           // expected-warning {{passing a dangling pointer as argument}}
+void f(my_pointer &p) {
   p = global_pointer; // OK, *this is not validated on assignment operator call
 }
 void caller() {
@@ -1200,7 +1198,7 @@ void parameter_psets(int value,
                      std::unique_ptr<int> &owner_ref,
                      my_pointer ptr_by_value,
                      const my_pointer &ptr_const_ref,
-                     my_pointer &ptr_ref, // expected-note {{it was never initialized here}}
+                     my_pointer &ptr_ref,
                      my_pointer *ptr_ptr,
                      const my_pointer *ptr_const_ptr) {
 
@@ -1225,16 +1223,16 @@ void parameter_psets(int value,
 
   __lifetime_pset_ref(ptr_ref); // expected-warning {{(*ptr_ref)}}
   // TODO pending clarification if Pointer& is out or in/out:
-  __lifetime_pset(ptr_ref); // expected-warning {{((invalid))}}
+  __lifetime_pset(ptr_ref); // expected-warning {{pset(ptr_ref) = (**ptr_ref)}}
 
   __lifetime_pset(ptr_ptr); // expected-warning {{((null), *ptr_ptr)}}
   assert(ptr_ptr);
-  __lifetime_pset(*ptr_ptr); // out: expected-warning {{((invalid))}}
+  __lifetime_pset(*ptr_ptr); // out: expected-warning {{pset(*ptr_ptr) = (**ptr_ptr)}}
 
   __lifetime_pset(ptr_const_ptr); // expected-warning {{((null), *ptr_const_ptr)}}
   assert(ptr_const_ptr);
   __lifetime_pset(*ptr_const_ptr); // in: expected-warning {{((null), **ptr_const_ptr)}}
-} // expected-warning@-1 {{returning a dangling pointer}}
+}
 
 void foreach_arithmetic() {
   int t[] = {1, 2, 3, 4, 5};
@@ -1532,32 +1530,6 @@ class g {
   }
 };
 } // namespace creduce12
-
-namespace creduce13 {
-template <typename a>
-a b(a &&);
-
-template <typename c>
-struct d {};
-
-class e {
-  d<int> operator*();
-};
-
-class h {
-  e begin();
-  void end();
-};
-
-class j {
-  // k is an output paramter (because h is a Pointer)
-  j(h &k) { // expected-note 2 {{it was never initialized here}}
-    __lifetime_pset_ref(k); // expected-warning {{pset(k) = (*k)}}
-    b(k); // expected-warning {{passing a dangling pointer as argument}}
-    return;  // expected-warning {{returning a dangling pointer as output value '*k'}}
-  }
-};
-} // namespace creduce13
 
 namespace creduce14 {
 // With this bug, c was classified as Aggregate,

@@ -114,6 +114,7 @@ public:
 
 # Difference from the original implementation
 ## Output variable
+### Return check
 ```C++
 bool foo(int** out)
 {
@@ -128,3 +129,13 @@ bool foo(int** out)
 ```
 
 You can use `--Wlifetime-output` to enable the check, which enforce `*out` is initialized in all paths.
+
+### Precondition inference
+A `Pointer*` parameter will be infered as an output variable, and we will add two implicit precondition:
+
++ If Pointer is a raw pointer or has default contructor
+    + `pset(p) = {*p}`
+    + `pset(*p) = {Invalid}`
++ Otherwise
+    + `pset(p) = {*p}`
+    + `pset(*p) = {**p}`

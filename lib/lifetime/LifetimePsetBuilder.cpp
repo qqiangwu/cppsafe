@@ -535,7 +535,11 @@ public:
         }
 
         if (E->getNumArgs() == 0) {
-            setPSet(E, PSet::null(NullReason::defaultConstructed(E->getSourceRange(), CurrentBlock)));
+            PSet P;
+            if (IsConvertible(ASTCtxt.NullPtrTy, E->getType())) {
+                P = PSet::null(NullReason::defaultConstructed(E->getSourceRange(), CurrentBlock));
+            }
+            setPSet(E, P);
             return;
         }
 
