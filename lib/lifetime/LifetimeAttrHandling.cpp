@@ -27,9 +27,12 @@
 #include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/SourceLocation.h>
 #include <gsl/util>
+#include <range/v3/range/conversion.hpp>
+#include <range/v3/view/transform.hpp>
 
 #include <functional>
 #include <map>
+#include <set>
 #include <vector>
 
 namespace clang::lifetime {
@@ -146,7 +149,7 @@ private:
                 break;
 
             case TypeCategory::Aggregate:
-                expandParameter(ParamDerefLoc, PointeeType, ParamType, &ContractAttr->PrePSets.at(ParamLoc),
+                expandParameter(ParamDerefLoc, PointeeType, PointeeType, ContractAttr->PrePSets.at(ParamLoc),
                     ContractAttr->PrePSets, Locations);
                 [[fallthrough]];
 
@@ -183,19 +186,14 @@ private:
 
                 ContractAttr->PrePSets.emplace(DerefThis, DerefThisPSet);
                 addParamSet(Locations.Input, DerefThis);
+            }
 
-                // for pointer implementation
-                if (TC.isPointer() && !isa<CXXConstructorDecl>(MD)) {
-                    expandPointerRecordThis(DerefThis, ClassTy, DerefThisPSet, ContractAttr->PrePSets);
-                }
-            } else {
-                const bool IsConstructor = isa<CXXConstructorDecl>(MD);
-
+            // Do not expand owners, they are the basic building block
+            if (!TC.isOwner()) {
                 // If the type of *this is not an Aggregate, treat each nonstatic data member m of *this as a parameter
                 // passed by value if in a constructor (and on function entry they are treated as described in §2.4.2)
                 // or by reference otherwise (and on function entry they are treated as described in this section).
-                expandParameter(DerefThis, ClassTy, (IsConstructor ? ClassTy : MD->getThisType()), &ThisPSet,
-                    ContractAttr->PrePSets, Locations);
+                expandParameter(DerefThis, ClassTy, ClassTy, ThisPSet, ContractAttr->PrePSets, Locations);
             }
         }
 
@@ -215,96 +213,83 @@ private:
     }
 
     // p2.5.1: Expand parameters and returns: Aggregates, nonstatic data members, and Pointer dereference locations
+    //
+    // Now we only expand parameters passed by pointer
+    //
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-    void expandParameter(const ContractVariable& V, const QualType Ty, const QualType AggTy,
-        const ContractPSet* AggPset, LifetimeContractAttr::PointsToMap& PMap, ParamDerivedLocations& Locations) const
+    void expandParameter(const ContractVariable& V, const QualType CurrentTy, const QualType RootTy,
+        const ContractPSet& RootPset, LifetimeContractAttr::PointsToMap& PMap, ParamDerivedLocations& Locations) const
     {
-        const auto AggTC = classifyTypeCategory(AggTy);
+        const auto RootTC = classifyTypeCategory(RootTy);
 
-        for (const auto* Member : Ty->getAsCXXRecordDecl()->fields()) {
-            ContractVariable VV = V;
-            VV.addFieldRef(Member);
+        for (const auto* Member : CurrentTy->getAsCXXRecordDecl()->fields()) {
+            ContractVariable MemberVar = V;
+            MemberVar.addFieldRef(Member);
 
             const auto MemberTC = classifyTypeCategory(Member->getType());
-            if (MemberTC.isAggregate()) {
+            if (MemberTC.isAggregate() || (MemberTC.isPointer() && Member->getType()->getAsCXXRecordDecl())) {
+                PMap.emplace(MemberVar, RootPset);
+                if (!RootTy->isRValueReferenceType()) {
+                    addParamSet(Locations.Input, MemberVar);
+                }
+
                 // Apply recursively to nested Aggregates’ by-value data members
-                expandParameter(VV, Member->getType(), AggTy, AggPset, PMap, Locations);
+                // Ex: if member is a Pointer record, expand it
+                expandParameter(MemberVar, Member->getType(), RootTy, RootPset, PMap, Locations);
                 continue;
             }
 
             if (MemberTC.isPointer()) {
-                if (AggTC.isPointer()) {
-                    // foo(Agg* agg) -> foo(int** agg_m)
-                    // pset(agg_m) = pset(agg)
-                    // PMap.emplace(VV, *AggPset);
-                    // TODO
+                if (RootTC.isPointer()) {
+                    // struct Pointer {
+                    //     char* data_;
+                    //     char* data() const { return data_; }
+                    // };
+                    // pset((*this).data_) = {**this}
+                    // it's not in INPUT
+                    PMap.emplace(MemberVar, derefPset(RootPset));
                     continue;
                 }
 
-                // This is not reachable now
-                // foo(Agg agg) -> foo(int* agg_m)
-                ContractVariable DerefLoc(VV);
-                DerefLoc.deref();
-                PMap.emplace(VV, ContractPSet(DerefLoc, isNullableType(Member->getType())));
-
-                if (!AggTy->isRValueReferenceType()) {
-                    addParamSet(Locations.Input, VV);
-                }
-                continue;
-            }
-
-            if (!AggTC.isPointer()) {
+                // If Root is Aggregate, and when expand a pointer member, assume its pset is deref itself
+                // Ignore the default behavior
                 continue;
             }
 
             // FD is owner or value
             // 2.5.3
-            // pset(agg.p) = pset(agg) if agg is a pointer
             if (MemberTC.isValue()) {
-                ContractPSet PS = *AggPset;
-                PS.ContainsNull = false;
-                PMap.emplace(VV, PS);
-                if (!AggTy->isRValueReferenceType()) {
-                    addParamSet(Locations.Input, VV);
+                PMap.emplace(MemberVar, RootPset);
+                if (!RootTy->isRValueReferenceType()) {
+                    addParamSet(Locations.Input, MemberVar);
                 }
                 continue;
             }
 
-            // foo(Owner& agg_m): pset(agg_m) = {*agg}
-            ContractPSet PS = *AggPset;
-            PS.ContainsNull = false;
-
-            // if agg is a pointer and contains a owner member, add pset(*agg) = {**agg}
-            for (const auto& V : AggPset->Vars) {
+            // for owner members, add pset(*agg) = {**agg}
+            for (const auto& V : RootPset.Vars) {
                 PMap.emplace(V, V.derefCopy());
             }
 
-            PMap.emplace(VV, PS);
+            // foo(Owner& agg_m): pset(agg_m) = {*agg}
+            PMap.emplace(MemberVar, RootPset);
 
-            if (!AggTy->isRValueReferenceType()) {
-                if (AggTy->isLValueReferenceType() && AggTy.isConstQualified()) {
-                    addParamSet(Locations.InputWeak, VV);
+            if (!RootTy->isRValueReferenceType()) {
+                if (RootTy->isLValueReferenceType() && RootTy.isConstQualified()) {
+                    addParamSet(Locations.InputWeak, MemberVar);
                 } else {
-                    addParamSet(Locations.Input, VV);
+                    addParamSet(Locations.Input, MemberVar);
                 }
             }
         }
     }
 
-    // for a Pointer Record, expand all its pointer members, set pset(member) = pset(record)
-    void expandPointerRecordThis(const ContractVariable& V, const QualType RecordType, const ContractPSet& AggPset,
-        LifetimeContractAttr::PointsToMap& PMap) const
+    static ContractPSet derefPset(const ContractPSet& P)
     {
-        for (const auto* Member : RecordType->getAsCXXRecordDecl()->fields()) {
-            ContractVariable VV = V;
-            VV.addFieldRef(Member);
-
-            const auto MemberTC = classifyTypeCategory(Member->getType());
-            if (MemberTC.isPointer()) {
-                // pset(agg_m) = pset(agg)
-                PMap.emplace(VV, AggPset);
-            }
-        }
+        ContractPSet R = P;
+        R.Vars = P.Vars | ranges::views::transform([](const ContractVariable& V) { return V.derefCopy(); })
+            | ranges::to<std::set>();
+        return R;
     }
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)

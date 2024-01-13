@@ -61,7 +61,7 @@ void test_parameter_expansion_by_pointer()
 {
     __lifetime_contracts(&f2);
     // expected-warning@-1 {{pset(Pre(a)) = ((null), *a)}}
-    // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
+    // expected-warning@-2 {{pset(Pre((*a).i)) = ((null), *a)}}
     // expected-warning@-3 {{pset(Post((return value))) = ((global), (null))}}
 
     double d;
@@ -105,21 +105,24 @@ void test_parameter_expansion_by_pointer_nested()
 {
     __lifetime_contracts(&g2);
     // expected-warning@-1 {{pset(Pre(a)) = ((null), *a)}}
-    // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
-    // expected-warning@-3 {{pset(Pre((*a).a1.i)) = (*a)}}
-    // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
+    // expected-warning@-2 {{pset(Pre((*a).i)) = ((null), *a)}}
+    // expected-warning@-3 {{pset(Pre((*a).a1)) = ((null), *a)}}
+    // expected-warning@-4 {{pset(Pre((*a).a1.i)) = ((null), *a)}}
+    // expected-warning@-5 {{pset(Post((return value))) = ((global), (null))}}
 
     __lifetime_contracts(&g3);
     // expected-warning@-1 {{pset(Pre(a)) = (*a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
-    // expected-warning@-3 {{pset(Pre((*a).a1.i)) = (*a)}}
-    // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
+    // expected-warning@-3 {{pset(Pre((*a).a1)) = (*a)}}
+    // expected-warning@-4 {{pset(Pre((*a).a1.i)) = (*a)}}
+    // expected-warning@-5 {{pset(Post((return value))) = ((global), (null))}}
 
     __lifetime_contracts(&g4);
     // expected-warning@-1 {{pset(Pre(a)) = (*a)}}
     // expected-warning@-2 {{pset(Pre((*a).i)) = (*a)}}
-    // expected-warning@-3 {{pset(Pre((*a).a1.i)) = (*a)}}
-    // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
+    // expected-warning@-3 {{pset(Pre((*a).a1)) = (*a)}}
+    // expected-warning@-4 {{pset(Pre((*a).a1.i)) = (*a)}}
+    // expected-warning@-5 {{pset(Post((return value))) = ((global), (null))}}
 }
 
 void test_parameter_expansion_this()
@@ -127,8 +130,9 @@ void test_parameter_expansion_this()
     __lifetime_contracts(&Nested::f7);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
     // expected-warning@-2 {{pset(Pre((*this).i)) = (*this)}}
-    // expected-warning@-3 {{pset(Pre((*this).a1.i)) = (*this)}}
-    // expected-warning@-4 {{pset(Post((return value))) = ((global), (null))}}
+    // expected-warning@-3 {{pset(Pre((*this).a1)) = (*this)}}
+    // expected-warning@-4 {{pset(Pre((*this).a1.i)) = (*this)}}
+    // expected-warning@-5 {{pset(Post((return value))) = ((global), (null))}}
 }
 
 // https://godbolt.org/z/wncC9a
@@ -183,7 +187,7 @@ void test_member_owner()
     __lifetime_contracts(&get1);
     // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
     // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
-    // expected-warning@-3 {{pset(Pre((*agg).o)) = (*agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = ((null), *agg)}}
     // expected-warning@-4 {{pset(Post((return value))) = (*agg)}}
     __lifetime_contracts(&get2);
     // expected-warning@-1 {{pset(Pre(agg)) = (*agg)}}
@@ -194,19 +198,19 @@ void test_member_owner()
     __lifetime_contracts(&get3);
     // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
     // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
-    // expected-warning@-3 {{pset(Pre((*agg).o)) = (*agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = ((null), *agg)}}
     // expected-warning@-4 {{pset(Post((return value))) = ((global))}}
 
     __lifetime_contracts(&get4);
     // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
     // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
-    // expected-warning@-3 {{pset(Pre((*agg).o)) = (*agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = ((null), *agg)}}
     // expected-warning@-4 {{pset(Post((return value))) = (*agg)}}
 
     __lifetime_contracts(&get5);
     // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
     // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
-    // expected-warning@-3 {{pset(Pre((*agg).o)) = (*agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = ((null), *agg)}}
     // expected-warning@-4 {{pset(Post((return value))) = (*agg)}}
 
     __lifetime_contracts(&OwnerThis::get1);
