@@ -493,7 +493,7 @@ public:
         }
 
         auto RetPSet = getPSet(RetVal);
-        if (RetVal->isLValue() && isa<MemberExpr>(RetVal)) {
+        if (RetVal->isLValue() && isa<MemberExpr>(ignoreTransparentExprs(RetVal))) {
             RetPSet = derefPSetForMemberIfNecessary(RetPSet);
         }
 

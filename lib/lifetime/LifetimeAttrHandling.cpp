@@ -342,8 +342,8 @@ private:
                     }
                 }
             }
-            if (Ret.isEmpty() && V.asParmVarDecl()) {
-                Variable VV(V, FD);
+            if (V.asParmVarDecl()) {
+                const Variable VV(V, FD);
                 if (OutputType->getAsCXXRecordDecl()) {
                     Ret.merge(ContractAttr->PrePSets.at(V));
                 }
