@@ -291,6 +291,10 @@ bool AstConsumer::HandleTopLevelDecl(clang::DeclGroupRef D)
 {
     Expects(Sema != nullptr);
 
+    if (Sema->getDiagnostics().hasUnrecoverableErrorOccurred()) {
+        return false;
+    }
+
     class Visitor : public clang::RecursiveASTVisitor<Visitor> {
     public:
         explicit Visitor(AstConsumer* C, clang::Sema* S)
