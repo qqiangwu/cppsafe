@@ -1695,13 +1695,13 @@ struct Node {
   SubRegion subregions_;
   Node *parent_;
   bool f() {
-    __lifetime_pset(subregions_);  // expected-warning {{pset(subregions_) = (**this)}}
+    __lifetime_pset(subregions_);  // expected-warning {{pset(subregions_) = (*this)}}
 
     for (auto itr = subregions_.begin(); cond();) {
-      __lifetime_pset(itr);  // expected-warning {{**this}}
+      __lifetime_pset(itr);  // expected-warning {{*this}}
 
       Node* up = itr->parent_;
-      __lifetime_pset(up); // expected-warning {{(***this)}}
+      __lifetime_pset(up); // expected-warning {{(*(*this).parent_)}}
 
       do {
         up = up->subregions_.begin();

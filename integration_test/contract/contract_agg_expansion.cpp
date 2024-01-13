@@ -183,50 +183,50 @@ void test_member_owner()
     __lifetime_contracts(&get1);
     // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
     // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
-    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
-    // expected-warning@-4 {{pset(Post((return value))) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (*agg)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (*agg)}}
     __lifetime_contracts(&get2);
     // expected-warning@-1 {{pset(Pre(agg)) = (*agg)}}
     // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
-    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
-    // expected-warning@-4 {{pset(Post((return value))) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (*agg)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (*agg)}}
 
     __lifetime_contracts(&get3);
     // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
     // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
-    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (*agg)}}
     // expected-warning@-4 {{pset(Post((return value))) = ((global))}}
 
     __lifetime_contracts(&get4);
     // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
     // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
-    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
-    // expected-warning@-4 {{pset(Post((return value))) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (*agg)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (*agg)}}
 
     __lifetime_contracts(&get5);
     // expected-warning@-1 {{pset(Pre(agg)) = ((null), *agg)}}
     // expected-warning@-2 {{pset(Pre(*agg)) = (**agg)}}
-    // expected-warning@-3 {{pset(Pre((*agg).o)) = (**agg)}}
-    // expected-warning@-4 {{pset(Post((return value))) = (**agg)}}
+    // expected-warning@-3 {{pset(Pre((*agg).o)) = (*agg)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (*agg)}}
 
     __lifetime_contracts(&OwnerThis::get1);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
     // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
-    // expected-warning@-3 {{pset(Pre((*this).o)) = (**this)}}
-    // expected-warning@-4 {{pset(Post((return value))) = (**this)}}
+    // expected-warning@-3 {{pset(Pre((*this).o)) = (*this)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (*this)}}
     __lifetime_contracts(&OwnerThis::get2);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
     // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
-    // expected-warning@-3 {{pset(Pre((*this).o)) = (**this)}}
+    // expected-warning@-3 {{pset(Pre((*this).o)) = (*this)}}
     // expected-warning@-4 {{pset(Post((return value))) = ((global))}}
     __lifetime_contracts(&OwnerThis::get3);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
     // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
-    // expected-warning@-3 {{pset(Pre((*this).o)) = (**this)}}
-    // expected-warning@-4 {{pset(Post((return value))) = (**this)}}
+    // expected-warning@-3 {{pset(Pre((*this).o)) = (*this)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (*this)}}
     __lifetime_contracts(&OwnerThis::get4);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
     // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
-    // expected-warning@-3 {{pset(Pre((*this).o)) = (**this)}}
-    // expected-warning@-4 {{pset(Post((return value))) = (**this)}}
+    // expected-warning@-3 {{pset(Pre((*this).o)) = (*this)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (*this)}}
 }

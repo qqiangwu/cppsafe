@@ -27,12 +27,9 @@
 #include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/SourceLocation.h>
 #include <gsl/util>
-#include <range/v3/range/conversion.hpp>
-#include <range/v3/view/transform.hpp>
 
 #include <functional>
 #include <map>
-#include <set>
 #include <vector>
 
 namespace clang::lifetime {
@@ -273,11 +270,9 @@ private:
                 continue;
             }
 
-            // foo(Owner& agg_m): pset(agg_m) = {**agg}
+            // foo(Owner& agg_m): pset(agg_m) = {*agg}
             ContractPSet PS = *AggPset;
             PS.ContainsNull = false;
-            PS.Vars = AggPset->Vars | ranges::views::transform([](const auto& V) { return V.derefCopy(); })
-                | ranges::to<std::set>();
 
             // if agg is a pointer and contains a owner member, add pset(*agg) = {**agg}
             for (const auto& V : AggPset->Vars) {
@@ -296,6 +291,7 @@ private:
         }
     }
 
+    // for a Pointer Record, expand all its pointer members, set pset(member) = pset(record)
     void expandPointerRecordThis(const ContractVariable& V, const QualType RecordType, const ContractPSet& AggPset,
         LifetimeContractAttr::PointsToMap& PMap) const
     {

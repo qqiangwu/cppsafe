@@ -16,12 +16,12 @@ struct CacheHolder {
         __lifetime_contracts(&CacheHolder::Get);
         // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
         // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
-        // expected-warning@-3 {{pset(Pre((*this).cache)) = (**this)}}
-        // expected-warning@-4 {{pset(Post((return value))) = ((null), **this)}}
+        // expected-warning@-3 {{pset(Pre((*this).cache)) = (*this)}}
+        // expected-warning@-4 {{pset(Post((return value))) = ((null), *this)}}
 
-        __lifetime_pset(cache); // expected-warning {{pset(cache) = (**this)}}
-        __lifetime_pset(*cache); // expected-warning {{pset(*cache) = (***this)}}
-        __lifetime_pset(&*cache); // expected-warning {{pset(&*cache) = (**this)}}
+        __lifetime_pset(cache); // expected-warning {{pset(cache) = (*this)}}
+        __lifetime_pset(*cache); // expected-warning {{pset(*cache) = (**this)}}
+        __lifetime_pset(&*cache); // expected-warning {{pset(&*cache) = (*this)}}
         return &*cache;
     }
 };
