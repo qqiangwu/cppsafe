@@ -25,6 +25,9 @@ static cl::OptionCategory CppSafeCategory("cppsafe options");
 static const cl::opt<bool> WarnNoLifetimeNull("Wno-lifetime-null",
     desc("Disable flow-sensitive warnings about nullness of Pointers"), cl::init(false), cl::cat(CppSafeCategory));
 
+static const cl::opt<bool> WarnNoLifetimePost(
+    "Wno-lifetime-post", desc("Disable post-condition check"), cl::init(false), cl::cat(CppSafeCategory));
+
 static const cl::opt<bool> WarnLifetimeGlobal("Wlifetime-global",
     desc("Flow-sensitive analysis that requires global variables of Pointer type to always point to variables with "
          "static lifetime"),
@@ -43,6 +46,7 @@ public:
     {
         const CppsafeOptions Options {
             .NoLifetimeNull = WarnNoLifetimeNull,
+            .NoLifetimePost = WarnNoLifetimePost,
             .LifetimeDisabled = WarnLifetimeDisabled,
             .LifetimeGlobal = WarnLifetimeGlobal,
             .LifetimeOutput = WarnLifetimeOutput,
