@@ -129,7 +129,7 @@ private:
                     ContractPSet OutParamPS;
                     if (PointeeType->getAsCXXRecordDecl()) {
                         OutParamPS = ParamDerefPSet;
-                        OutParamPS.ContainsNull = false;
+                        OutParamPS.ContainsNull = IsConvertible(ASTCtxt.NullPtrTy, PointeeType);
                     } else {
                         OutParamPS.ContainsInvalid = true;
                     }
@@ -473,7 +473,7 @@ static LifetimeContractAttr* getLifetimeContracts(const FunctionDecl* FD)
 }
 
 void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTContext& ASTCtxt, const CFGBlock* Block,
-    IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter, bool Pre)
+    IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter, bool Pre, bool IgnoreNull)
 {
     auto* ContractAttr = getLifetimeContracts(FD);
 
@@ -497,6 +497,9 @@ void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTConte
                 }
                 if (PS.containsInvalid()) {
                     PS = PSet::invalid(InvalidationReason::NotInitialized(Range, Block));
+                }
+                if (IgnoreNull) {
+                    PS.removeNull();
                 }
             }
             PMap.emplace(V, PS);

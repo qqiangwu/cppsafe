@@ -4,15 +4,30 @@ struct Opts {
     void Foo();
 };
 
-void foo(Opts* p, int* q)
+int* foo(Opts* p, int* q)
 {
     p->Foo();
     *q = 0;
+    return q;
 }
 
-void bar()
+int bar()
 {
-    foo(nullptr, nullptr);
+    int* r = foo(nullptr, nullptr);
+    return *r;
+}
+
+struct [[gsl::Pointer(int)]] Ptr {
+    Ptr();
+    Ptr(int* p);
+};
+
+void foo(Ptr* p);
+
+void bar2()
+{
+    Ptr p;
+    foo(&p);
 }
 
 // expected-no-diagnostics

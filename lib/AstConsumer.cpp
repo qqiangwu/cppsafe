@@ -191,10 +191,6 @@ public:
     void warnNullDangling(WarnType T, SourceRange Range, ValueSource Source, StringRef ValueName, bool Possibly) final
     {
         assert(T == WarnType::Dangling || T == WarnType::Null);
-        if (T == WarnType::Null && getOptions().NoLifetimeNull) {
-            IgnoreCurrentWarning = true;
-            return;
-        }
 
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Warnings.at((int)T)])
@@ -204,11 +200,6 @@ public:
     void warn(WarnType T, SourceRange Range, bool Possibly) final
     {
         assert((unsigned)T < sizeof(Warnings) / sizeof(Warnings[0]));
-        assert(T != WarnType::Dangling && T != WarnType::Null);
-        if (T == WarnType::DerefNull && getOptions().NoLifetimeNull) {
-            IgnoreCurrentWarning = true;
-            return;
-        }
 
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Warnings.at((int)T)]) << Possibly << Range;

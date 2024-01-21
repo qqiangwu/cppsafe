@@ -351,7 +351,8 @@ void LifetimeContext::traverseBlocks()
     auto* Start = &ControlFlowGraph->getEntry();
     auto& BC = getBlockContext(Start);
     // ExitPSets are the function parameters.
-    getLifetimeContracts(BC.ExitPMap, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter);
+    getLifetimeContracts(
+        BC.ExitPMap, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter, true, Reporter.getOptions().NoLifetimeNull);
     if (const auto* Method = dyn_cast<CXXMethodDecl>(FuncDecl)) {
         createEntryPsetsForMembers(Method, BC.ExitPMap);
     }

@@ -116,6 +116,12 @@ void CallVisitor::enforcePreAndPostConditions(
 
     checkPreconditions(CallE, PreConditions);
 
+    if (Reporter.getOptions().NoLifetimeNull) {
+        for (auto& [_, P] : PreConditions) {
+            P.removeNull();
+        }
+    }
+
     PSetsMap PostConditions;
     getLifetimeContracts(PostConditions, Callee, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
     bindArguments(PostConditions, PreConditions, CallE, /*Checking=*/false);
@@ -135,6 +141,11 @@ void CallVisitor::enforcePreAndPostConditions(
         }
     }
 
+    if (Reporter.getOptions().NoLifetimeNull) {
+        for (auto& [V, P] : PostConditions) {
+            P.removeNull();
+        }
+    }
     enforcePostconditions(CallE, Callee, PostConditions);
 }
 
