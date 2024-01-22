@@ -19,14 +19,17 @@ conan export --name=llvm --version=17.0.2 .
 cd -
 
 # Build
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+# If you are using MacOS and already have llvm@17 installed
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLOCAL_CLANG=$(brew --prefix llvm@17)
 
 # Test
 cd integration_test
 bash run_tests.sh
 
 # Or you can try cppship https://github.com/qqiangwu/cppship
-cppship build
+cppship build -r
 ```
 
 # Debug functions

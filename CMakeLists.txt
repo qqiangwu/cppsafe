@@ -41,15 +41,36 @@ set(CMAKE_CXX_STANDARD_REQUIRED On)
 set(CMAKE_CXX_EXTENSIONS Off)
 
 # Dependency management
+if(LOCAL_CLANG)
+	execute_process(COMMAND grep -v llvm conanfile.txt.tpl OUTPUT_FILE conanfile.txt RESULT_VARIABLE return_code)
+	if(NOT ${return_code} EQUAL "0")
+		message(FATAL_ERROR "remove llvm dependency failed")
+	endif()
+
+	message(STATUS "Use local clang in ${LOCAL_CLANG} (instead of conan)")
+else()
+	execute_process(COMMAND cp conanfile.txt.tpl conanfile.txt RESULT_VARIABLE return_code)
+
+	message(STATUS "Use llvm from conan")
+endif()
+
 include(cmake/conan.cmake)
 
 # Package finders
-find_package(LLVM REQUIRED)
+if(LOCAL_CLANG)
+	set(Clang_DIR "${LOCAL_CLANG}/lib/cmake/clang/")
+	find_package(Clang REQUIRED)
+else()
+	find_package(LLVM REQUIRED)
+endif()
 find_package(Microsoft.GSL REQUIRED)
 find_package(fmt REQUIRED)
 find_package(range-v3 REQUIRED)
 
 add_library(cppsafe_deps INTERFACE)
+if(LOCAL_CLANG)
+	target_include_directories(cppsafe_deps SYSTEM INTERFACE ${CLANG_INCLUDE_DIRS})
+endif()
 target_link_libraries(cppsafe_deps INTERFACE clangTooling)
 target_link_libraries(cppsafe_deps INTERFACE Microsoft.GSL::GSL)
 target_link_libraries(cppsafe_deps INTERFACE fmt::fmt)
