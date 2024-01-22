@@ -541,7 +541,9 @@ public:
         // no x or o.
         if (O.ContainsGlobal) {
             // here: 'this' is not Invalid, if 'this' is null, O must contains null, checked before
-            if (!ContainsGlobal && !Vars.empty()) {
+            if (Reporter.getOptions().NoLifetimePost && !Vars.empty() && Vars.begin()->isThisPointer()) {
+                /* empty */
+            } else if (!ContainsGlobal && !Vars.empty()) {
                 Reporter.warnWrongPset(Range, Source, SourceName, str(), O.str());
                 return false;
             }
@@ -551,6 +553,9 @@ public:
         for (const auto& V : Vars) {
             auto I = O.Vars.find(V);
             if (I == O.Vars.end() || I->getOrder() > V.getOrder()) {
+                if (Reporter.getOptions().NoLifetimePost && V.isThisPointer()) {
+                    continue;
+                }
                 Reporter.warnWrongPset(Range, Source, SourceName, str(), O.str());
                 return false;
             }

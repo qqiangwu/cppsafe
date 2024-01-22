@@ -516,10 +516,6 @@ public:
             }
         }
 
-        if (Reporter.getOptions().NoLifetimePost) {
-            return;
-        }
-
         PSetsMap PostConditions;
         getLifetimeContracts(PostConditions, AnalyzedFD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
         RetPSet.checkSubstitutableFor(
@@ -1455,7 +1451,7 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
     if (B.hasNoReturnElement() || isThrowingBlock(B)) {
         return;
     }
-    if (B.succ_size() == 1 && *B.succ_begin() == &B.getParent()->getExit() && !Reporter.getOptions().NoLifetimePost) {
+    if (B.succ_size() == 1 && *B.succ_begin() == &B.getParent()->getExit()) {
         PSetsMap PostConditions;
         getLifetimeContracts(PostConditions, AnalyzedFD, ASTCtxt, &B, IsConvertible, Reporter, /*Pre=*/false);
         for (auto& VarToPSet : PostConditions) {
