@@ -8,6 +8,7 @@ llvm = { version="17.0.2", components=["clangTooling"], options={ with_project_c
 ms-gsl = "4.0.0"
 fmt = "10.1.1"
 range-v3 = "0.12.0"
+nextsilicon-cpp-subprocess = "2.0.2"
 
 [target.'cfg(not(compiler = "msvc"))'.profile]
 cxxflags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-missing-field-initializers"]

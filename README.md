@@ -59,27 +59,19 @@ You can see `integration_test/example.cpp` for what the lifetime profile can che
 Assume cppsafe is already installed.
 
 ```bash
-cppsafe example.cpp -- -isystem /opt/homebrew/opt/llvm/lib/clang/17/include -std=c++17
+cppsafe example.cpp -- -std=c++20
 ```
-
-Note the extra `-isystem /opt/homebrew/opt/llvm/lib/clang/17/include`, because cppsafe may not infer c includes correctly.
 
 Pass cppsafe arguments before `--`, pass compiler arguments after `--`.
 
-Copy cppsafe to llvm binary directory eliminate the extra `-isystem /opt/homebrew/opt/llvm/lib/clang/17/include`, but I don't sure it will work.
+Note that cppsafe will detect system includes via `c++`, you can override it via env `CXX`
 
-I'm still investigate how to solve the problem.
+```bash
+CXX=/opt/homebrew/opt/llvm/bin/clang cppsafe example.cpp -- -std=c++20
+```
 
 ### With compile_commands.json
 Generally, you should use cppsafe with compile_commands.json.
-
-By default, cmake generated compile_commands.json doesn't include system headers, add the following lines to the bottom of your CMakeFiles.txt
-
-```bash
-if(CMAKE_EXPORT_COMPILE_COMMANDS)
-    set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
-endif()
-```
 
 Generate compile_commands.json via cmake, assume it's in `build`. And run:
 
