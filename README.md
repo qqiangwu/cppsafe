@@ -9,27 +9,82 @@ Code is based on https://github.com/mgehre/llvm-project.
 + Cpp core guidelines Lifetime Profile: https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#SS-lifetime
 + Spec: https://github.com/isocpp/CppCoreGuidelines/blob/master/docs/Lifetime.pdf
 
-# Build
+# Usage
 Please make sure conan2 and cmake is avaiable.
 
+## Build
+### MacOS + Local LLVM@17
+```bash
+# Configuration
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLOCAL_CLANG=$(brew --prefix llvm@17)
+
+# Build
+cmake --build build
+
+# Install (optional)
+sudo cmake --install build
+```
+
+### With LLVM on conan
 ```bash
 # Install llvm via conan
 cd conan
 conan export --name=llvm --version=17.0.2 .
 cd -
 
-# Build
+# Configuration
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
-# If you are using MacOS and already have llvm@17 installed
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLOCAL_CLANG=$(brew --prefix llvm@17)
+# Build
+cmake --build build
 
-# Test
-cd integration_test
-bash run_tests.sh
+# Install (optional)
+sudo cmake --install build
 
 # Or you can try cppship https://github.com/qqiangwu/cppship
 cppship build -r
+sudo cppship install
+```
+
+## Test
+```bash
+cd integration_test
+bash run_tests.sh
+```
+
+You can see `integration_test/example.cpp` for what the lifetime profile can check.
+
+## Use it
+### By hand
+Assume cppsafe is already installed.
+
+```bash
+cppsafe example.cpp -- -isystem /opt/homebrew/opt/llvm/lib/clang/17/include -std=c++17
+```
+
+Note the extra `-isystem /opt/homebrew/opt/llvm/lib/clang/17/include`, because cppsafe may not infer c includes correctly.
+
+Pass cppsafe arguments before `--`, pass compiler arguments after `--`.
+
+Copy cppsafe to llvm binary directory eliminate the extra `-isystem /opt/homebrew/opt/llvm/lib/clang/17/include`, but I don't sure it will work.
+
+I'm still investigate how to solve the problem.
+
+### With compile_commands.json
+Generally, you should use cppsafe with compile_commands.json.
+
+By default, cmake generated compile_commands.json doesn't include system headers, add the following lines to the bottom of your CMakeFiles.txt
+
+```bash
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+    set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
+endif()
+```
+
+Generate compile_commands.json via cmake, assume it's in `build`. And run:
+
+```bash
+cppsafe -p build a.cpp b.cpp c.cpp
 ```
 
 # Debug functions
