@@ -525,3 +525,24 @@ void example_2_6_2_7() {
     s[0];				// ERROR (lifetime.3): ‘s’ was invalidated when expected-warning {{dereferencing a dangling pointer}}
 						// temporary ‘"none"’ was destroyed (line A)
 }
+
+void iterate_while_modify()
+{
+    std::vector<int> vec;
+
+    for (const auto x: vec) {  // expected-warning {{passing a dangling pointer as argument}}
+        vec.push_back(x);  // expected-note {{modified here}}
+    }
+}
+
+int test_vector_iterator(std::vector<int>::iterator p)
+{
+    return *p;
+}
+
+void foo(std::string_view sv)
+{
+    for (auto c: sv) {
+        (void)c;
+    }
+}

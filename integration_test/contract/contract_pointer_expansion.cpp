@@ -16,7 +16,7 @@ struct [[gsl::Pointer(char)]] StringView
     {
         __lifetime_contracts(&StringView::data);
         // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
-        // expected-warning@-2 {{pset(Pre(*this)) = ((null), **this)}}
+        // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
         // expected-warning@-3 {{pset(Pre((*this).buffer_)) = (**this)}}
         // expected-warning@-4 {{pset(Pre((*this).len_)) = (*this)}}
         // expected-warning@-5 {{pset(Post((return value))) = ((null), **this)}}

@@ -537,7 +537,7 @@ public:
 
         if (E->getNumArgs() == 0) {
             PSet P;
-            if (IsConvertible(ASTCtxt.NullPtrTy, E->getType())) {
+            if (isNullableType(E->getType())) {
                 P = PSet::null(NullReason::defaultConstructed(E->getSourceRange(), CurrentBlock));
             }
             setPSet(E, P);

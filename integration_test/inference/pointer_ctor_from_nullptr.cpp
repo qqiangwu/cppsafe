@@ -6,6 +6,8 @@ struct [[gsl::Pointer]] Fn
     Fn(decltype(nullptr) p);
 
     void Set(decltype(nullptr) p);
+
+    operator bool();
 };
 
 void test()

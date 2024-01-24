@@ -115,8 +115,8 @@ struct [[gsl::Pointer]] my_pointer {
 void deref_uninitialized() {
   int *p;        // expected-note {{it was never initialized here}}
   *p = 3;        // expected-warning {{dereferencing a dangling pointer}}
-  my_pointer p2;
-  *p2;
+  my_pointer p2;  // expected-note {{default-constructed pointers are assumed to be null}}
+  *p2;  // expected-warning {{passing a null pointer as argument where a non-null pointer is expected}}
 }
 
 void deref_nullptr() {

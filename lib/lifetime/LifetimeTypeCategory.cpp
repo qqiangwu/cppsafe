@@ -365,15 +365,32 @@ bool isNullableType(QualType QT)
     }
     while (const auto* TypeDef = Inner->getAs<TypedefType>()) {
         const NamedDecl* Decl = TypeDef->getDecl();
+        if (Decl->getName().ends_with_insensitive("iterator")) {
+            return false;
+        }
+        if (isAnnotatedWith(Decl, "gsl::lifetime_nonnull")) {
+            return false;
+        }
         if (auto Nullability = GetKnownNullability(Decl->getName())) {
             return *Nullability;
         }
         Inner = TypeDef->desugar();
     }
     if (const auto* RD = Inner->getAsCXXRecordDecl()) {
-        if (auto Nullability = GetKnownNullability(RD->getName())) {
-            return *Nullability;
+        if (RD->isLambda()) {
+            // allow capture pointers which can be nullptr
+            return true;
         }
+        if (!classifyTypeCategory(QT).isPointer()) {
+            return false;
+        }
+        return hasMethodLike(RD, [](const CXXMethodDecl* D) {
+            if (const auto* C = dyn_cast<CXXConversionDecl>(D)) {
+                return C->getConversionType()->isBooleanType();
+            }
+
+            return false;
+        });
     }
     return classifyTypeCategory(QT) == TypeCategory::Pointer && !QT->isReferenceType();
 }

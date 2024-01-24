@@ -1135,11 +1135,11 @@ void ownerPointsToTemplateType() {
   __lifetime_pset(Iauto); // expected-warning {{pset(Iauto) = (*Oauto)}}
 }
 
-void string_view_ctors(const char *c) {
+void string_view_ctors(gsl::not_null<const char *>c) {
   std::string_view sv;
-  __lifetime_pset(sv); // expected-warning {{pset(sv) = ((null))}}
+  __lifetime_pset(sv); // expected-warning {{pset(sv) = ((unknown))}}
   std::string_view sv2(c);
-  __lifetime_pset(sv2); // expected-warning {{pset(sv2) = ((null), *c)}}
+  __lifetime_pset(sv2); // expected-warning {{pset(sv2) = (*c)}}
   char local;
   std::string_view sv3(&local, 1);
   __lifetime_pset(sv3); // expected-warning {{pset(sv3) = (local)}}
@@ -1216,10 +1216,10 @@ void parameter_psets(int value,
   __lifetime_pset_ref(owner_const_ref); // expected-warning {{(*owner_const_ref)}}
   __lifetime_pset(owner_const_ref);     // expected-warning {{(**owner_const_ref)}}
 
-  __lifetime_pset(ptr_by_value); // expected-warning {{((null), *ptr_by_value)}}
+  __lifetime_pset(ptr_by_value); // expected-warning {{(*ptr_by_value)}}
 
   __lifetime_pset_ref(ptr_const_ref); // expected-warning {{(*ptr_const_ref)}}
-  __lifetime_pset(ptr_const_ref);     // expected-warning {{((null), **ptr_const_ref)}}
+  __lifetime_pset(ptr_const_ref);     // expected-warning {{(**ptr_const_ref)}}
 
   __lifetime_pset_ref(ptr_ref); // expected-warning {{(*ptr_ref)}}
   // TODO pending clarification if Pointer& is out or in/out:
@@ -1231,7 +1231,7 @@ void parameter_psets(int value,
 
   __lifetime_pset(ptr_const_ptr); // expected-warning {{((null), *ptr_const_ptr)}}
   assert(ptr_const_ptr);
-  __lifetime_pset(*ptr_const_ptr); // in: expected-warning {{((null), **ptr_const_ptr)}}
+  __lifetime_pset(*ptr_const_ptr); // in: expected-warning {{(**ptr_const_ptr)}}
 }
 
 void foreach_arithmetic() {

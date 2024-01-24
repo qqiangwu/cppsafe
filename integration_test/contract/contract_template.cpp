@@ -37,11 +37,11 @@ void test_contract()
 
     __lifetime_contracts(&Ptr<int>::foo);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
-    // expected-warning@-2 {{pset(Pre(*this)) = ((null), **this)}}
+    // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
     // expected-warning@-3 {{pset(Pre(p)) = ((global))}}
 
     __lifetime_contracts(&Ptr<int>::bar<int>);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
-    // expected-warning@-2 {{pset(Pre(*this)) = ((null), **this)}}
+    // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
     // expected-warning@-3 {{pset(Pre(p)) = ((global))}}
 }

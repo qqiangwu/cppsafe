@@ -1,7 +1,7 @@
 struct [[gsl::Pointer(int)]] Ptr1 {
     Ptr1();
 
-    Ptr1(decltype(nullptr) p);
+    operator bool();
 };
 
 struct [[gsl::Pointer(int)]] Ptr2 {
@@ -27,7 +27,7 @@ void foo3(Ptr2* p)
     __lifetime_contracts(&foo3);
     // expected-warning@-1 {{pset(Pre(p)) = ((null), *p)}}
     // expected-warning@-2 {{pset(Pre(*p)) = (**p)}}
-    // expected-warning@-3 {{pset(Post(*p)) = ((null), **p)}}
+    // expected-warning@-3 {{pset(Post(*p)) = (**p)}}
 }
 
 void test_default_contructor()
@@ -46,14 +46,14 @@ void test_in_out()
 {
     __lifetime_contracts(test_in_out1);
     // expected-warning@-1 {{pset(Pre(input)) = ((null), *input)}}
-    // expected-warning@-2 {{pset(Pre(*input)) = ((null), **input)}}
+    // expected-warning@-2 {{pset(Pre(*input)) = (**input)}}
     // expected-warning@-3 {{pset(Pre(output)) = ((null), *output)}}
     // expected-warning@-4 {{pset(Pre(*output)) = (**output)}}
-    // expected-warning@-5 {{pset(Post(*output)) = ((null), **input, **output)}}
+    // expected-warning@-5 {{pset(Post(*output)) = (**input, **output)}}
     __lifetime_contracts(test_in_out2);
     // expected-warning@-1 {{pset(Pre(input)) = (*input)}}
-    // expected-warning@-2 {{pset(Pre(*input)) = ((null), **input)}}
+    // expected-warning@-2 {{pset(Pre(*input)) = (**input)}}
     // expected-warning@-3 {{pset(Pre(output)) = (*output)}}
     // expected-warning@-4 {{pset(Pre(*output)) = (**output)}}
-    // expected-warning@-5 {{pset(Post(*output)) = ((null), **input, **output)}}
+    // expected-warning@-5 {{pset(Post(*output)) = (**input, **output)}}
 }

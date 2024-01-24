@@ -79,7 +79,40 @@ Generate compile_commands.json via cmake, assume it's in `build`. And run:
 cppsafe -p build a.cpp b.cpp c.cpp
 ```
 
+# Tutorial
+## Nullness
+Cppsafe will check nullness for pointers. The rules are:
+
+```C++
+void f1(int* p);  // pset(p) = {null, *p}
+
+void f2(vector<int>::iterator p);  // pset(p) = {*p}
+
+using A [[clang::annotate("gsl::lifetime_nonnull")]]= int*;
+using B = int*;
+void f3(A a, B b);
+    // pset(a) = {*a}
+    // pset(b) = {null, *b}
+
+// For pointer classes, if is has `operator bool`, then null will be infered
+void f4(std::function<void()> f, span<int> s);
+    // pset(f) = {null, *f}
+    // pset(s) = {*s}
+```
+
 # Debug functions
+## __lifetime_pset
+```C++
+template <class T>
+void __lifetime_pset(T&&) {}
+
+void foo(int* p)
+{
+    __lifetime_pset(p);
+}
+```
+
+## __lifetime_contracts
 ```C++
 template <class T>
 void __lifetime_contracts(T&&) {}
@@ -149,6 +182,14 @@ struct Test
     [[clang::annotate("gsl::lifetime_post", "*z", "x")]]
     int* Foo(int* x [[clang::annotate("gsl::lifetime_pre", Global)]], int* y, int** z);
 };
+```
+
+## NEW gsl::lifetime_nonnull
+annotation a typedef of a raw pointer as nonnull
+
+```c++
+using A [[clang::annotate("gsl::lifetime_nonnull")]]= int*;
+typedef int* B [[clang::annotate("gsl::lifetime_nonnull")]];
 ```
 
 ## clang::reinitializes

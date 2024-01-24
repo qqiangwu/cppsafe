@@ -129,7 +129,7 @@ private:
                     ContractPSet OutParamPS;
                     if (PointeeType->getAsCXXRecordDecl()) {
                         OutParamPS = ParamDerefPSet;
-                        OutParamPS.ContainsNull = IsConvertible(ASTCtxt.NullPtrTy, PointeeType);
+                        OutParamPS.ContainsNull = isNullableType(PointeeType);
                     } else {
                         OutParamPS.ContainsInvalid = true;
                     }
