@@ -89,6 +89,12 @@ void CallVisitor::run(const CallExpr* CallE, ASTContext& ASTCtxt, const IsConver
         return;
     }
 
+    if (Callee->hasAttr<BuiltinAttr>() && Callee->getName() == "__builtin_addressof") {
+        const auto* O = CallE->getArg(0);
+        Builder.setPSet(CallE, Builder.getPSet(O));
+        return;
+    }
+
     /// Special case for assignment of Pointer into Pointer: copy pset
     if (handlePointerCopy(CallE)) {
         return;

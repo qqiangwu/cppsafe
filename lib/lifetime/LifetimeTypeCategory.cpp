@@ -448,9 +448,6 @@ static QualType getPointeeType(const CXXRecordDecl* R)
 
 static QualType getPointeeTypeImpl(const Type* T)
 {
-    // llvm::errs() << "\n\ngetPointeeType " << QT.getAsString() << " asRecord:"
-    // << (intptr_t)QT->getAsCXXRecordDecl() << "\n";
-
     if (T->isReferenceType() || T->isAnyPointerType()) {
         return T->getPointeeType();
     }
@@ -509,9 +506,6 @@ static QualType getPointeeType(const Type* T)
     auto P = getPointeeTypeImpl(T);
     if (!P.isNull()) {
         P = P.getCanonicalType();
-        if (P->isVoidType()) {
-            P = {};
-        }
     }
     M[T] = P;
 #if CLASSIFY_DEBUG

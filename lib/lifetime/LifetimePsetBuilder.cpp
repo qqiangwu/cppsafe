@@ -868,6 +868,8 @@ public:
         setPSet(L, PS);
     }
 
+    void VisitSourceLocExpr(const SourceLocExpr* E) { setPSet(E, PSet::globalVar(false)); }
+
     void updatePSetsFromCondition(
         const Stmt* S, bool Positive, std::optional<PSetsMap>& FalseBranchExitPMap, SourceRange Range);
 
