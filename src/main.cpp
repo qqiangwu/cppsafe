@@ -6,6 +6,7 @@
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendAction.h>
 #include <clang/Lex/HeaderSearchOptions.h>
+#include <clang/Tooling/ArgumentsAdjusters.h>
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
 #include <cpp-subprocess/subprocess.hpp>
@@ -60,7 +61,7 @@ struct DetectSystemIncludesError : public std::runtime_error {
 class LifetimeFrontendAction : public clang::ASTFrontendAction {
 public:
     LifetimeFrontendAction()
-    {
+    try {
         using namespace subprocess;
 
         const auto* Cxx = std::invoke([] {
@@ -95,6 +96,8 @@ public:
 
             SystemIncludes.push_back(L.drop_while([](const char C) { return std::isspace(C); }).str());
         }
+    } catch (const subprocess::CalledProcessError& E) {
+        throw DetectSystemIncludesError(E.what());
     }
 
     bool PrepareToExecuteAction(clang::CompilerInstance& CI) override
@@ -142,6 +145,12 @@ Lifetime checks:
     }
 
     ClangTool Tool(OptionsParser->getCompilations(), OptionsParser->getSourcePathList());
+
+    Tool.appendArgumentsAdjuster([](CommandLineArguments Args, StringRef) {
+        Args.push_back(fmt::format("-D__CPPSAFE__={}", CPPSAFE_VERSION));
+        return Args;
+    });
+
     try {
         return Tool.run(newFrontendActionFactory<LifetimeFrontendAction>().get());
     } catch (const DetectSystemIncludesError& E) {

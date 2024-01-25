@@ -79,6 +79,9 @@ Generate compile\_commands.json via cmake, assume it's in `build`. And run:
 cppsafe -p build a.cpp b.cpp c.cpp
 ```
 
+## Feature test
+cppsafe will define `__CPPSAFE__` when compiling your code.
+
 # Tutorial
 ## Nullness
 Cppsafe will check nullness for pointers. The rules are:
