@@ -57,6 +57,7 @@ jobs:
         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DLOCAL_CLANG=${local_clang} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
     - name: Lint
+      if: github.event_name == 'pull_request'
       run: |
         mergebase=$(git merge-base --fork-point origin/${{github.event.pull_request.base.ref}})
         cppship lint -c ${mergebase}
