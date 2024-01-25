@@ -2,12 +2,12 @@
 [![macOS](https://github.com/qqiangwu/cppsafe/actions/workflows/ci-macos.yml/badge.svg?branch=main)](https://github.com/qqiangwu/cppsafe/actions/workflows/ci-macos.yml)
 
 # Intro
-A cpp static analyzer to enforce lifetime profile.
+This is a C++ static analyzer to enforce the lifetime profile:
 
-Code is based on https://github.com/mgehre/llvm-project.
++ C++ Core Guidelines Lifetime Profile: <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#SS-lifetime>
++ Spec: <https://github.com/isocpp/CppCoreGuidelines/blob/master/docs/Lifetime.pdf>
 
-+ Cpp core guidelines Lifetime Profile: https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#SS-lifetime
-+ Spec: https://github.com/isocpp/CppCoreGuidelines/blob/master/docs/Lifetime.pdf
+The code is based on [Matthias Gehre's fork of LLVM](https://github.com/mgehre/llvm-project).
 
 # Usage
 Please make sure conan2 and cmake is avaiable.
@@ -19,7 +19,7 @@ Please make sure conan2 and cmake is avaiable.
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLOCAL_CLANG=$(brew --prefix llvm@17)
 
 # Build
-cmake --build build
+cmake --build build -j
 
 # Install (optional)
 sudo cmake --install build
@@ -36,7 +36,7 @@ cd -
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
 # Build
-cmake --build build
+cmake --build build -j
 
 # Install (optional)
 sudo cmake --install build
@@ -64,16 +64,16 @@ cppsafe example.cpp -- -std=c++20
 
 Pass cppsafe arguments before `--`, pass compiler arguments after `--`.
 
-Note that cppsafe will detect system includes via `c++`, you can override it via env `CXX`
+Note that cppsafe will detect system includes via `c++`, you can override it via the environment variable `CXX`.
 
 ```bash
 CXX=/opt/homebrew/opt/llvm/bin/clang cppsafe example.cpp -- -std=c++20
 ```
 
-### With compile_commands.json
-Generally, you should use cppsafe with compile_commands.json.
+### With compile\_commands.json
+Generally, you should use cppsafe with compile\_commands.json.
 
-Generate compile_commands.json via cmake, assume it's in `build`. And run:
+Generate compile\_commands.json via cmake, assume it's in `build`. And run:
 
 ```bash
 cppsafe -p build a.cpp b.cpp c.cpp
@@ -83,7 +83,7 @@ cppsafe -p build a.cpp b.cpp c.cpp
 ## Nullness
 Cppsafe will check nullness for pointers. The rules are:
 
-```C++
+```cpp
 void f1(int* p);  // pset(p) = {null, *p}
 
 void f2(vector<int>::iterator p);  // pset(p) = {*p}
@@ -101,8 +101,8 @@ void f4(std::function<void()> f, span<int> s);
 ```
 
 # Debug functions
-## __lifetime_pset
-```C++
+## `__lifetime_pset`
+```cpp
 template <class T>
 void __lifetime_pset(T&&) {}
 
@@ -112,8 +112,8 @@ void foo(int* p)
 }
 ```
 
-## __lifetime_contracts
-```C++
+## `__lifetime_contracts`
+```cpp
 template <class T>
 void __lifetime_contracts(T&&) {}
 
@@ -137,13 +137,13 @@ __lifetime_contracts([]{
 ```
 
 # Annotations
-The following annotations are supported now
+The following annotations are supported now.
 
-## gsl::lifetime_const
-+ ```[[clang::annotate("gsl::lifetime_const")]]```
-+ put it after parameter name or before function signature to make *this lifetime_const
+## `gsl::lifetime_const`
++ `[[clang::annotate("gsl::lifetime_const")]]`
++ put it after parameter name or before function signature to make it `lifetime_const`
 
-```C++
+```cpp
 struct [[gsl::Owner(int)]] Dummy
 {
     int* Get();
@@ -155,12 +155,12 @@ void Foo(Dummy& p [[clang::annotate("gsl::lifetime_const")]]);
 void Foo([[clang::annotate("gsl::lifetime_const")]] Dummy& p);
 ```
 
-## gsl::lifetime_in
-+ ```[[clang::annotate("gsl::lifetime_in")]]```
+## `gsl::lifetime_in`
++ `[[clang::annotate("gsl::lifetime_in")]]`
 + mark a pointer to pointer or ref to pointer parameter as an input parameter
 
-```C++
-// by default, ps is viewed as an output parameter
+```cpp
+// by default, p is viewed as an output parameter
 void Foo(int** p);
 void Foo2(int*& p);
 
@@ -168,10 +168,10 @@ void Bar([[clang::annotate("gsl::lifetime_in")]] int** p);
 void Bar2([[clang::annotate("gsl::lifetime_in")]] int*& p);
 ```
 
-## gsl::pre or gsl::post
-We need to use clang::annotate to mimic the effects of `[[gsl::pre]]` and `[[gsl::post]]` in the paper
+## `gsl::pre` and `gsl::post`
+We need to use `clang::annotate` to mimic the effects of `[[gsl::pre]]` and `[[gsl::post]]` in the paper.
 
-```C++
+```cpp
 constexpr int Return = 0;
 constexpr int Global = 1;
 
@@ -184,18 +184,18 @@ struct Test
 };
 ```
 
-## NEW gsl::lifetime_nonnull
-annotation a typedef of a raw pointer as nonnull
+## NEW `gsl::lifetime_nonnull`
+This annotates a type alias of a raw pointer as nonnull.
 
-```c++
+```cpp
 using A [[clang::annotate("gsl::lifetime_nonnull")]]= int*;
 typedef int* B [[clang::annotate("gsl::lifetime_nonnull")]];
 ```
 
-## clang::reinitializes
-Reset a moved-from object.
+## `clang::reinitializes`
+This is to reset a moved-from object.
 
-```C++
+```cpp
 class Value
 {
 public:
@@ -206,7 +206,7 @@ public:
 # Difference from the original implementation
 ## Output variable
 ### Return check
-```C++
+```cpp
 bool foo(int** out)
 {
     if (cond) {
@@ -219,10 +219,10 @@ bool foo(int** out)
 }
 ```
 
-You can use `--Wlifetime-output` to enable the check, which enforce `*out` is initialized in all paths.
+You can use `--Wlifetime-output` to enable the check, which enforces that `*out` must be initialized on all paths.
 
 ### Precondition inference
-A `Pointer*` parameter will be infered as an output variable, and we will add two implicit precondition:
+A `Pointer*` parameter will be inferred as an output variable, and we will add two implicit preconditions:
 
 + If Pointer is a raw pointer or has default contructor
     + `pset(p) = {*p}`
