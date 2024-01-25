@@ -60,7 +60,7 @@ jobs:
         key: ${{ steps.cache-conan.outputs.cache-primary-key }}
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{ matrix.build_type }}
+      run: cmake --build ${{github.workspace}}/build --config ${{ matrix.build_type }} -j
 
     - name: Test
       working-directory: integration_test

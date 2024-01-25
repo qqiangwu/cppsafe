@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   build:
     if: ${{!contains(github.event.pull_request.title, 'skip-ci') && !contains(github.event.head_commit.message, 'skip-ci')}}
@@ -33,18 +29,37 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Install llvm@17
+      run: |
+        brew install llvm@17
+        echo $(brew --prefix llvm@17)/bin >> $GITHUB_PATH
+
+    - name: Install cppsafe
+      if: github.event_name == 'pull_request'
+      run: brew install qqiangwu/tap/cppship
+
+    - name: Format
+      if: github.event_name == 'pull_request'
+      run: |
+        mergebase=$(git merge-base --fork-point origin/${{github.event.pull_request.base.ref}})
+        cppship fmt -c ${mergebase}
 
     - name: Install conan
       run: pip3 install conan
-
-    - name: Install llvm@17
-      run: brew install llvm@17
 
     - name: Configure CMake
       run: |
         local_clang=$(brew --prefix llvm@17)
         echo "local clang: ${local_clang}"
-        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DLOCAL_CLANG=${local_clang}
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DLOCAL_CLANG=${local_clang} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Lint
+      run: |
+        mergebase=$(git merge-base --fork-point origin/${{github.event.pull_request.base.ref}})
+        cppship lint -c ${mergebase}
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{ matrix.build_type }}
+      run: cmake --build ${{github.workspace}}/build --config ${{ matrix.build_type }} -j
