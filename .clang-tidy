@@ -320,6 +320,8 @@ CheckOptions:
     value:           CamelCase
   - key:             readability-identifier-naming.IgnoreMainLikeFunctions
     value:           1
+  - key:             misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+    value: true
 
 # clang-tidy 17
 # -bugprone-narrowing-conversions

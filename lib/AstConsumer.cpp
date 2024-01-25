@@ -1,12 +1,19 @@
 #include "cppsafe/AstConsumer.h"
 #include "cppsafe/Options.h"
 #include "cppsafe/lifetime/Lifetime.h"
+#include "cppsafe/lifetime/contract/Annotation.h"
 
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/Attr.h>
+#include <clang/AST/Attrs.inc>
 #include <clang/AST/Decl.h>
 #include <clang/AST/DeclGroup.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/Stmt.h>
 #include <clang/AST/Type.h>
+#include <clang/ASTMatchers/ASTMatchFinder.h>
+#include <clang/ASTMatchers/ASTMatchers.h>
 #include <clang/Basic/DiagnosticIDs.h>
 #include <clang/Basic/LLVM.h>
 #include <clang/Basic/SourceLocation.h>
@@ -17,6 +24,7 @@
 #include <clang/Sema/SemaConsumer.h>
 #include <gsl/assert>
 #include <gsl/pointers>
+#include <llvm/ADT/STLExtras.h>
 
 #include <array>
 #include <cassert>
@@ -91,6 +99,7 @@ const std::array Notes {
 
 class Reporter : public LifetimeReporterBase {
     Sema& S;
+    const FunctionDecl* Fn;
     cppsafe::CppsafeOptions Options;
     std::set<SourceLocation> WarningLocs;
     bool IgnoreCurrentWarning = false;
@@ -103,9 +112,47 @@ class Reporter : public LifetimeReporterBase {
         return !IgnoreCurrentWarning;
     }
 
+    bool isSuppressed(SourceRange Range)
+    {
+        using namespace ast_matchers;
+
+        for (const auto& N : match(stmt(forEachDescendant(stmt().bind("stmt"))), *Fn->getBody(), S.getASTContext())) {
+            const auto* S = N.getNodeAs<Stmt>("stmt");
+            if (!S->getSourceRange().fullyContains(Range)) {
+                continue;
+            }
+            if (S->getSourceRange().getEnd() < Range.getBegin()) {
+                continue;
+            }
+            if (S->getSourceRange().getBegin() > Range.getEnd()) {
+                return false;
+            }
+
+            if (const auto* DS = dyn_cast<DeclStmt>(S)) {
+                const bool WS = isWarningSuppressed(*DS->decl_begin());
+                if (WS) {
+                    return true;
+                }
+            }
+
+            if (const auto* AS = dyn_cast<AttributedStmt>(S)) {
+                const bool WS = llvm::any_of(AS->getAttrs(), [](const Attr* A) {
+                    const auto* SA = dyn_cast<SuppressAttr>(A);
+                    return SA && llvm::is_contained(SA->diagnosticIdentifiers(), "lifetime");
+                });
+                if (WS) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
 public:
-    Reporter(Sema& S, const cppsafe::CppsafeOptions& Opts)
+    Reporter(Sema& S, const FunctionDecl* Fn, const cppsafe::CppsafeOptions& Opts)
         : S(S)
+        , Fn(Fn)
         , Options(Opts)
     {
         auto& E = S.getDiagnostics();
@@ -180,6 +227,10 @@ public:
 
     void warnPsetOfGlobal(SourceRange Range, StringRef VariableName, std::string ActualPset) final
     {
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
         if (!getOptions().LifetimeGlobal) {
             IgnoreCurrentWarning = true;
             return;
@@ -192,6 +243,10 @@ public:
     {
         assert(T == WarnType::Dangling || T == WarnType::Null);
 
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Warnings.at((int)T)])
                 << (int)Source << ValueName << Possibly << Range;
@@ -201,12 +256,20 @@ public:
     {
         assert((unsigned)T < sizeof(Warnings) / sizeof(Warnings[0]));
 
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Warnings.at((int)T)]) << Possibly << Range;
         }
     }
     void warnNonStaticThrow(SourceRange Range, StringRef ThrownPset) final
     {
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_non_static_throw]) << ThrownPset << Range;
         }
@@ -214,6 +277,10 @@ public:
     void warnWrongPset(
         SourceRange Range, ValueSource Source, StringRef ValueName, StringRef RetPset, StringRef ExpectedPset) final
     {
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_wrong_pset])
                 << (int)Source << ValueName << RetPset << ExpectedPset << Range;
@@ -221,6 +288,11 @@ public:
     }
     void warnPointerArithmetic(SourceRange Range) final
     {
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
         if (!getOptions().LifetimeDisabled) {
             IgnoreCurrentWarning = true;
             return;
@@ -232,6 +304,11 @@ public:
     }
     void warnUnsafeCast(SourceRange Range) final
     {
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
         if (!getOptions().LifetimeDisabled) {
             IgnoreCurrentWarning = true;
             return;
@@ -244,6 +321,11 @@ public:
 
     void warnUnsupportedExpr(SourceRange Range) final
     {
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_unsupported_expression]) << Range;
         }
@@ -333,7 +415,7 @@ void AstConsumer::run(const clang::FunctionDecl* Fn)
         return !ICS.isFailure();
     };
 
-    lifetime::Reporter Reporter(*Sema, Options);
+    lifetime::Reporter Reporter(*Sema, Fn, Options);
     lifetime::runAnalysis(Fn, Sema->getASTContext(), Reporter, IsConvertible);
 }
 
