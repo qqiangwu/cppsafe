@@ -83,6 +83,32 @@ cppsafe -p build a.cpp b.cpp c.cpp
 cppsafe will define `__CPPSAFE__` when compiling your code.
 
 # Tutorial
+## Suppress warning
+Warnings can be suppressed by function/block/statement/declaration.
+
+```cpp
+[[gsl::suppress("lifetime")]]
+void foo1(int* p)
+{
+    *p;
+}
+
+void foo2(int* p)
+{
+    [[gsl::suppress("lifetime")]]
+    {
+        *p;
+        *p;
+    }
+
+    [[gsl::suppress("lifetime")]]
+    int x = *p;
+
+    [[gsl::suppress("lifetime")]]
+    *p;
+}
+```
+
 ## Nullness
 Cppsafe will check nullness for pointers. The rules are:
 
