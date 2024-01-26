@@ -4,17 +4,17 @@
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
 
+#include <clang/AST/ASTContext.h>
 #include <clang/AST/Attr.h>
+#include <clang/AST/Attrs.inc>
 #include <clang/AST/Decl.h>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
 #include <clang/AST/Type.h>
 #include <clang/Basic/LLVM.h>
-#include <clang/Basic/Lambda.h>
 #include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/SourceLocation.h>
-#include <llvm/Support/Caching.h>
 
 #include <cassert>
 
@@ -158,13 +158,22 @@ void CallVisitor::enforcePreAndPostConditions(
 bool CallVisitor::handlePointerCopy(const CallExpr* CallE)
 {
     if (const auto* OC = dyn_cast<CXXOperatorCallExpr>(CallE)) {
-        if (OC->getOperator() == OO_Equal && OC->getNumArgs() == 2 && isPointer(OC->getArg(0))
-            && isPointer(OC->getArg(1))) {
-            const SourceRange Range = CallE->getSourceRange();
-            PSet RHS = Builder.getPSet(Builder.getPSet(OC->getArg(1)));
-            RHS = Builder.handlePointerAssign(OC->getArg(0)->getType(), RHS, Range);
-            Builder.setPSet(Builder.getPSet(OC->getArg(0)), RHS, Range);
-            Builder.setPSet(CallE, RHS);
+        if (OC->getOperator() == OO_Equal && OC->getNumArgs() == 2 && isPointer(OC->getArg(0))) {
+            const auto* RArg = OC->getArg(1);
+            const auto TC = classifyTypeCategory(RArg->getType());
+
+            if (TC.isPointer() || isa<CXXNullPtrLiteralExpr>(RArg)) {
+                const SourceRange Range = CallE->getSourceRange();
+                PSet RHS = Builder.getPSet(Builder.getPSet(RArg));
+                RHS = Builder.handlePointerAssign(OC->getArg(0)->getType(), RHS, Range);
+                Builder.setPSet(Builder.getPSet(OC->getArg(0)), RHS, Range);
+                Builder.setPSet(CallE, RHS);
+                return true;
+            }
+
+            const PSet P = PSet::globalVar();
+            Builder.setPSet(Builder.getPSet(OC->getArg(0)), P, CallE->getSourceRange());
+            Builder.setPSet(CallE, P);
             return true;
         }
     }
@@ -189,14 +198,14 @@ void CallVisitor::tryResetPSet(const CallExpr* CallE)
 
 const Expr* CallVisitor::getObjectNeedReset(const CallExpr* CallE)
 {
-    if (const auto* OC = llvm::dyn_cast<CXXOperatorCallExpr>(CallE)) {
+    if (const auto* OC = dyn_cast<CXXOperatorCallExpr>(CallE)) {
         if (OC->getOperator() == OO_Equal) {
             return OC->getArg(0);
         }
     }
 
     // TODO: check precondition
-    if (const auto* MC = llvm::dyn_cast<CXXMemberCallExpr>(CallE)) {
+    if (const auto* MC = dyn_cast<CXXMemberCallExpr>(CallE)) {
         const auto* MD = MC->getMethodDecl();
         if (MD->isInstance()) {
             if (MD->hasAttr<ReinitializesAttr>()) {
@@ -265,6 +274,7 @@ void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Ex
         });
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): todo
 void CallVisitor::checkPreconditions(const Expr* CallE, PSetsMap& PreConditions)
 {
     // Check preconditions. We might have them 2 levels deep.

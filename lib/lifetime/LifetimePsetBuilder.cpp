@@ -556,7 +556,8 @@ public:
         } else if (TC == TypeCategory::Pointer || isa<CXXNullPtrLiteralExpr>(E->getArg(0))) {
             setPSet(E, getPSet(E->getArg(0)));
         } else {
-            setPSet(E, PSet::invalid(InvalidationReason::NotInitialized(E->getSourceRange(), CurrentBlock)));
+            // eg. std::function<void()> f(Callable{});
+            setPSet(E, PSet::globalVar());
         }
     }
 
@@ -759,6 +760,13 @@ public:
         if (P.containsGlobal()) {
             Ret.merge(PSet::globalVar(false));
         }
+
+        if (P.containsNull()) {
+            for (const auto& R : P.nullReasons()) {
+                Ret.addNull(R);
+            }
+        }
+
         return Ret;
     }
 
