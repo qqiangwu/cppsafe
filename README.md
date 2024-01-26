@@ -129,6 +129,113 @@ void f4(std::function<void()> f, span<int> s);
     // pset(s) = {*s}
 ```
 
+## Options
+By default, cppsafe aims to provide lowest false-positive, lots of checks are not performed. You can use the following options to disable or enable more checks.
+
+### `--Wno-lifetime-null`
+Cppsafe will check nullness of parameters.
+
+```cpp
+void foo(int* a, gsl::not_null<int*> b, int* c)
+{
+    // pre: pset(a) = {null, *a}
+    // pre: pset(b) = {*b}
+    // pre: pset(c) = {null, *c}
+
+    int x = *a;  // warning: dereference a possibly null pointer
+    int y = *b;  // ok
+
+    assert(c != nullptr);
+    int z = *c;  // ok
+}
+```
+
+You can use `--Wno-lifetime-null` to disable all nullness check.
+
+```cpp
+void foo(int* a, gsl::not_null<int*> b, int* c)
+{
+    // pre: pset(a) = {*a}
+    // pre: pset(b) = {*b}
+    // pre: pset(c) = {*c}
+
+    int x = *a;  // ok
+    int y = *b;  // ok
+    int z = *c;  // ok
+}
+```
+
+### `--Wlifetime-post`
+Add member function postcondition check.
+
+Member function contracts are not infered well, which may need lots of manual annotation to reduce warnings.
+
+```cpp
+struct [[gsl::Pointer(int)]] Ptr
+{
+    double* m;
+
+    // infered post: pset(return) = {global}
+    double* get()
+    {
+        return m;  // infer: pset(m) = {**this}
+    }
+
+    // warnings are generated only if --Wlifetime-post
+};
+```
+
+Note: member function contract inference is likely to change to reduce the number of manual annotations.
+
+### `--Wlifetime-global`
+Requires global variables of Pointer type to always point to variables with static lifetime.
+
+```cpp
+// post: pset(return) = {null, global}
+Test* Get();
+
+void test()
+{
+    auto* p = Get();
+
+    int d;
+    p->p = &d;
+    // warning: global pointer points to non-static variables
+    // triggered only if --Wlifetime-global
+}
+```
+
+### `--Wlifetime-disabled`
+Get warnings when the flow-sensitive analysis is disabled on a function due to forbidden constructs.
+
+```cpp
+void foo(int* p)
+{
+    ++p;  // silently disable lifetime checks, use --Wlifetime-disabled to trigger a warning
+    *p = 0;
+}
+```
+
+### `--Wlifetime-output`
+Enforce output parameter validity check in all paths.
+
+```cpp
+int generate(bool cond, int** out)
+{
+    assert(out);
+
+    // post: pset(out) = {null, *p}
+    // post: pset(*out) = {invalid}
+    if (cond) {
+        // *out is {invalid} in this branch, warnings are triggered only if --Wlifetime-output
+        return ERROR;
+    }
+
+    *out = new int{10};
+    return OK;
+}
+```
+
 # Debug functions
 ## `__lifetime_pset`
 ```cpp
@@ -210,6 +317,8 @@ struct Test
     int* Foo(int* x [[clang::annotate("gsl::lifetime_pre", ":global")]], int* y, int** z, int* m);
 };
 ```
+
+Special symbols `null`, `global`, `invalid` must be prefixed with `:` to avoid name conflicts with parameters.
 
 ## NEW `gsl::lifetime_nonnull`
 This annotates a type alias of a raw pointer as nonnull.
