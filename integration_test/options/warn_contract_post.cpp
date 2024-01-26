@@ -1,4 +1,4 @@
-// ARGS: --Wno-lifetime-post
+// ARGS: --Wlifetime-post
 
 constexpr int Return = 0;
 constexpr int Global = 1;
@@ -15,6 +15,6 @@ struct [[gsl::Pointer(int)]] Ptr
 
     double* get()
     {
-        return m;
+        return m;  // expected-warning {{returning a pointer with points-to set (**this) where points-to set ((global), (null)) is expected}}
     }
 };
