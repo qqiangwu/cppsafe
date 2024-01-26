@@ -9,7 +9,7 @@ constexpr int Global = 0;
 [[clang::annotate("gsl::lifetime_pre", "p", Global)]]
 void call(int* p);
 
-void foo2(int* p) // expected-note {{the parameter is assumed to be potentially null}}
+int foo2(int* p) // expected-note {{the parameter is assumed to be potentially null}}
 {
     {
         *p;  // expected-warning {{dereferencing a possibly null pointer}}
@@ -28,4 +28,7 @@ void foo2(int* p) // expected-note {{the parameter is assumed to be potentially 
 
     [[gsl::suppress("lifetime")]]
     call(nullptr);
+
+    [[gsl::suppress("lifetime")]]
+    return *p;
 }
