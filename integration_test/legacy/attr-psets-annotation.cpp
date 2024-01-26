@@ -157,8 +157,8 @@ void f() {
   // expected-warning@-16 {{pset(Pre(ptr_ptr)) = ((null), *ptr_ptr)}}
   // expected-warning@-17 {{pset(Pre(*ptr_ptr)) = (**ptr_ptr)}}
   // expected-warning@-18 {{pset(Pre(ptr_by_value)) = (*ptr_by_value)}}
-  // expected-warning@-19 {{pset(Post(*ptr_ref)) = (**owner_ref, **ptr_const_ptr, **ptr_const_ref, **ptr_ref, *int_ref, *ptr_by_value)}}
-  // expected-warning@-20 {{pset(Post(*ptr_ptr)) = (**owner_ref, **ptr_const_ptr, **ptr_const_ref, **ptr_ptr, *int_ref, *ptr_by_value)}}
+  // expected-warning@-19 {{pset(Post(*ptr_ref)) = (**owner_ref, **ptr_const_ptr, **ptr_const_ref, **ptr_ptr, **ptr_ref, *int_ref, *ptr_by_value)}}
+  // expected-warning@-20 {{pset(Post(*ptr_ptr)) = (**owner_ref, **ptr_const_ptr, **ptr_const_ref, **ptr_ptr, **ptr_ref, *int_ref, *ptr_by_value)}}
   __lifetime_contracts(p4);
   // expected-warning@-1 {{pset(Pre(a)) = ((null), *a)}}
   // expected-warning@-2 {{pset(Pre(b)) = ((null), *a)}}

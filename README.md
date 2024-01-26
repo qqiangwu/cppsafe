@@ -320,6 +320,32 @@ struct Test
 
 Special symbols `null`, `global`, `invalid` must be prefixed with `:` to avoid name conflicts with parameters.
 
+## NEW `gsl::lifetime_inout`
+Annotate parameters acting as both input and output.
+
+```cpp
+// by default, Point* and Pointer& are output parameters
+void f1(int** a)
+{
+    // pre: pset(a) = {null, *a}
+    // pre: pset(*a) = {invalid}
+    // post: pset(*a) = {null, global}
+}
+
+void f2([[clang::annotate("gsl::lifetime_in")]] int** a)
+{
+    // pre: pset(a) = {null, *a}
+    // pre: pset(*a) = {null, **a}
+}
+
+void f3([[clang::annotate("gsl::lifetime_inout")]] int** a)
+{
+    // pre: pset(a) = {null, *a}
+    // pre: pset(*a) = {null, **a}
+    // post: pset(*a) = {null, **a, global}
+}
+```
+
 ## NEW `gsl::lifetime_nonnull`
 This annotates a type alias of a raw pointer as nonnull.
 

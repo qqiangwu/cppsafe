@@ -27,3 +27,11 @@ void test()
     // expected-warning@-1 {{pset(Pre(p)) = (*p)}}
     // expected-warning@-2 {{pset(Pre(*p)) = ((null), **p)}}
 }
+
+void Bar3([[clang::annotate("gsl::lifetime_inout")]] int** p)
+{
+    __lifetime_contracts(&Bar3);
+    // expected-warning@-1 {{pset(Pre(p)) = ((null), *p)}}
+    // expected-warning@-2 {{pset(Pre(*p)) = ((null), **p)}}
+    // expected-warning@-3 {{pset(Post(*p)) = ((null), **p)}}
+}

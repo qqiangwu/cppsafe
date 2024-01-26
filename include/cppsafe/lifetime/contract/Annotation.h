@@ -27,6 +27,8 @@ inline bool isLifetimeConst(const Decl* D) { return isAnnotatedWith(D, "gsl::lif
 
 inline bool isLifetimeIn(const Decl* D) { return isAnnotatedWith(D, "gsl::lifetime_in"); }
 
+inline bool isLifetimeInout(const Decl* D) { return isAnnotatedWith(D, "gsl::lifetime_inout"); }
+
 inline bool isWarningSuppressed(const Decl* D)
 {
     return llvm::any_of(D->specific_attrs<SuppressAttr>(),
