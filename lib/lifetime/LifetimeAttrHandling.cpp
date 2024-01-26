@@ -127,9 +127,10 @@ private:
                     && !isForwardingReference(FD, PVD)) {
                     // Output params are initially invalid.
                     ContractPSet OutParamPS;
-                    if (PointeeType->getAsCXXRecordDecl()) {
+                    if (PointeeType->getAsCXXRecordDecl() || isLifetimeInout(PVD)) {
                         OutParamPS = ParamDerefPSet;
                         OutParamPS.ContainsNull = isNullableType(PointeeType);
+                        addParamSet(Locations.Input, ParamDerefLoc);
                     } else {
                         OutParamPS.ContainsInvalid = true;
                     }
@@ -297,7 +298,7 @@ private:
     {
         // p2.5.5
         // Compute default postconditions.
-        auto ComputeOutput = [&](const ContractVariable& V, QualType OutputType) {
+        auto ComputeOutput = [&](QualType OutputType) {
             ContractPSet Ret;
             for (const ContractVariable& CV : Locations.Input) {
                 if (canAssign(getLocationType(CV), OutputType)) {
@@ -323,12 +324,6 @@ private:
                     }
                 }
             }
-            if (V.asParmVarDecl()) {
-                const Variable VV(V, FD);
-                if (OutputType->getAsCXXRecordDecl()) {
-                    Ret.merge(ContractAttr->PrePSets.at(V));
-                }
-            }
             if (Ret.isEmpty()) {
                 Ret.ContainsGlobal = true;
             }
@@ -347,7 +342,7 @@ private:
         }
 
         for (const ContractVariable& CV : Locations.Output) {
-            ContractAttr->PostPSets[CV] = ComputeOutput(CV, getLocationType(CV));
+            ContractAttr->PostPSets[CV] = ComputeOutput(getLocationType(CV));
         }
 
         // Process user defined postconditions.
@@ -472,6 +467,7 @@ static LifetimeContractAttr* getLifetimeContracts(const FunctionDecl* FD)
     return &It->second;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): todo
 void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTContext& ASTCtxt, const CFGBlock* Block,
     IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter, bool Pre, bool IgnoreNull)
 {
