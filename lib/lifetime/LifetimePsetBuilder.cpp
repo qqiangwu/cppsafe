@@ -311,7 +311,7 @@ public:
     {
         I = !I->isSemanticForm() ? I->getSemanticForm() : I;
 
-        if (I->getType()->isPointerType()) {
+        if (isPointer(I)) {
             if (I->getNumInits() == 0) {
                 setPSet(I, PSet::null(NullReason::defaultConstructed(I->getSourceRange(), CurrentBlock)));
                 return;
