@@ -1,16 +1,21 @@
+constexpr int Return = 0;
+constexpr int Global = 0;
+constexpr int Invalid = 0;
+constexpr int Null = 0;
+
 template <class T>
 void __lifetime_contracts(T&&);
 
 void Foo1(int* p, int* q [[clang::annotate("gsl::lifetime_pre", "p")]]);
-void Foo2(int* p, int* q [[clang::annotate("gsl::lifetime_pre", ":global")]]);
-void Foo3(int* p, int* q [[clang::annotate("gsl::lifetime_pre", ":invalid")]]);
-void Foo4(int* p, int* q [[clang::annotate("gsl::lifetime_pre", ":null")]]);
-void Foo5(int* p, int* q [[clang::annotate("gsl::lifetime_pre", "p", ":global")]]);
+void Foo2(int* p, int* q [[clang::annotate("gsl::lifetime_pre", Global)]]);
+void Foo3(int* p, int* q [[clang::annotate("gsl::lifetime_pre", Invalid)]]);
+void Foo4(int* p, int* q [[clang::annotate("gsl::lifetime_pre", Null)]]);
+void Foo5(int* p, int* q [[clang::annotate("gsl::lifetime_pre", "p", Global)]]);
 void Foo6(int* p [[clang::annotate("gsl::lifetime_pre", "this")]]);
     // expected-warning@-1 {{this pre/postcondition is not supported}}
 
-[[clang::annotate("gsl::lifetime_pre", "p", ":global")]]
-[[clang::annotate("gsl::lifetime_pre", "*q", ":global")]]
+[[clang::annotate("gsl::lifetime_pre", "p", Global)]]
+[[clang::annotate("gsl::lifetime_pre", "*q", Global)]]
 void Foo7(int* p, double** q);
 
 void test_pre()
@@ -47,22 +52,22 @@ void test_pre()
 
 struct Out
 {
-    [[clang::annotate("gsl::lifetime_post", "return", "this")]]
+    [[clang::annotate("gsl::lifetime_post", Return, "this")]]
     int* Get();
 
-    [[clang::annotate("gsl::lifetime_post", "return", "*this")]]
+    [[clang::annotate("gsl::lifetime_post", Return, "*this")]]
     int* GetInner();
     // expected-warning@-2 {{this pre/postcondition is not supported}}
 
-    [[clang::annotate("gsl::lifetime_post", "return", "this")]]
+    [[clang::annotate("gsl::lifetime_post", Return, "this")]]
     static int* Get2();
     // expected-warning@-2 {{this pre/postcondition is not supported}}
 };
 
-[[clang::annotate("gsl::lifetime_post", "return", "q")]]
+[[clang::annotate("gsl::lifetime_post", Return, "q")]]
 int* Bar(int* p, int* q [[clang::annotate("gsl::lifetime_pre", "p")]]);
 
-[[clang::annotate("gsl::lifetime_post", "return", "*p")]]
+[[clang::annotate("gsl::lifetime_post", Return, "*p")]]
 double* Bar2(int*&& p);
 
 void test_post()
