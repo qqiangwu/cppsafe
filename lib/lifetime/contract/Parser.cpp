@@ -1,6 +1,5 @@
 #include "cppsafe/lifetime/contract/Parser.h"
 #include "cppsafe/lifetime/LifetimeAttrData.h"
-#include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
 
 #include <clang/AST/Attr.h>
@@ -43,10 +42,39 @@ static const ParmVarDecl* toCanonicalParmVar(const ParmVarDecl* PVD)
     return FD->getCanonicalDecl()->getParamDecl(PVD->getFunctionScopeIndex());
 }
 
+static std::optional<ContractPSet> resolvePrefinedVar(StringRef Name)
+{
+    ContractPSet Result;
+
+    if (Name == "null") {
+        Result.ContainsNull = true;
+        return Result;
+    }
+    if (Name == "global") {
+        Result.ContainsGlobal = true;
+        return Result;
+    }
+    if (Name == "invalid") {
+        Result.ContainsInvalid = true;
+        return Result;
+    }
+
+    return {};
+}
+
 // This function can either collect the PSets of the symbols based on a lookup
 // table or just the symbols into a pset if the lookup table is nullptr.
 static std::optional<ContractPSet> lookupVar(const FunctionDecl* FD, StringRef E, const AttrPointsToMap* Lookup)
 {
+    if (E.starts_with(":")) {
+        return resolvePrefinedVar(E.drop_front());
+    }
+    if (E == "return") {
+        ContractPSet Result;
+        Result.Vars.insert(ContractVariable::returnVal());
+        return Result;
+    }
+
     int Deref = 0;
     while (!E.empty() && E.front() == '*') {
         ++Deref;
