@@ -132,13 +132,15 @@ int main(int argc, const char** argv)
 {
     const cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
     const cl::extrahelp CppSafeHelp(R"(
-Lifetime checks:
-    default: local pset check, enforce function preconditions
+Extra args:
+    cppsafe <cppsafe options> -- <compiler options>
+    cppsafe --Wno-lifetime-null -- -std=c++20 -Wno-unused
 )");
 
     const llvm::InitLLVM _(argc, argv);
 
-    auto OptionsParser = CommonOptionsParser::create(argc, argv, CppSafeCategory);
+    const char* Overview = "C++ Core Guidelines Lifetime profile static analyzer";
+    auto OptionsParser = CommonOptionsParser::create(argc, argv, CppSafeCategory, llvm::cl::OneOrMore, Overview);
     if (!OptionsParser) {
         llvm::WithColor::error() << llvm::toString(OptionsParser.takeError());
         return 1;
