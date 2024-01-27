@@ -15,6 +15,7 @@
 
 #include <clang/Analysis/Analyses/Dominators.h>
 #include <clang/Basic/SourceLocation.h>
+#include <gsl/pointers>
 
 #include <string>
 
@@ -29,6 +30,7 @@ class ClassTemplateSpecializationDecl;
 class CXXRecordDecl;
 class FunctionDecl;
 class CFGBlock;
+class Sema;
 
 namespace lifetime {
 class Variable;
@@ -72,7 +74,7 @@ public:
     virtual const cppsafe::CppsafeOptions& getOptions() const = 0;
 
     virtual bool shouldFilterWarnings() const { return false; }
-    void initializeFiltering(CFG* Cfg, IsCleaningBlockTy IsCleaningBlock);
+    void initializeFiltering(CFG* Cfg, IsCleaningBlockTy ICB);
     void setCurrentBlock(const CFGBlock* B) { Current = B; }
     bool shouldBeFiltered(const CFGBlock* Source, const Variable* V) const;
 
@@ -106,6 +108,12 @@ bool isNoopBlock(const CFGBlock& B);
 
 void runAnalysis(
     const FunctionDecl* Func, ASTContext& Context, LifetimeReporterBase& Reporter, IsConvertibleTy IsConvertible);
+
+// I known it's ugly, but it's fast to implement
+gsl::not_null<Sema*> getSema();
+
+void setSema(Sema* S);
+
 } // namespace lifetime
 } // namespace clang
 

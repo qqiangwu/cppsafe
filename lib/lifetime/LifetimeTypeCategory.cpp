@@ -14,6 +14,7 @@
 #include <clang/AST/Attrs.inc>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclTemplate.h>
+#include <clang/Sema/Sema.h>
 
 #include <map>
 #include <set>
@@ -212,6 +213,13 @@ static TypeClassification classifyTypeCategoryImpl(const Type* T)
         }
 
         return TypeCategory::Value;
+    }
+
+    if (!R->hasDefinition()) {
+        if (auto* T = dyn_cast<ClassTemplateSpecializationDecl>(R)) {
+            getSema()->InstantiateClassTemplateSpecialization(
+                R->getSourceRange().getBegin(), T, TemplateSpecializationKind::TSK_ExplicitInstantiationDeclaration);
+        }
     }
 
     if (!R->hasDefinition()) {

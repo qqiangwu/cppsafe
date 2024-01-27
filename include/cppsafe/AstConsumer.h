@@ -15,9 +15,9 @@ public:
     {
     }
 
-    void InitializeSema(clang::Sema& S) override { Sema = &S; }
+    void InitializeSema(clang::Sema& S) override;
 
-    void ForgetSema() override { Sema = nullptr; }
+    void ForgetSema() override;
 
     bool HandleTopLevelDecl(clang::DeclGroupRef D) override;
 
