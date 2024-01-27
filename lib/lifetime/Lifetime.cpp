@@ -9,19 +9,26 @@
 #include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
+#include "cppsafe/lifetime/LifetimeTypeCategory.h"
 
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/Attr.h"
-#include "clang/Analysis/AnalysisDeclContext.h"
-#include "clang/Analysis/CFG.h"
-#include "clang/Analysis/FlowSensitive/DataflowWorklist.h"
-#include "clang/Basic/LLVM.h"
-#include "clang/Basic/SourceManager.h"
-#include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Statistic.h"
-#include "llvm/Support/raw_ostream.h"
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/Attr.h>
+#include <clang/AST/Attrs.inc>
+#include <clang/AST/Decl.h>
+#include <clang/AST/Expr.h>
+#include <clang/Analysis/AnalysisDeclContext.h>
+#include <clang/Analysis/CFG.h>
+#include <clang/Analysis/FlowSensitive/DataflowWorklist.h>
+#include <clang/Basic/LLVM.h>
+#include <clang/Basic/SourceLocation.h>
+#include <clang/Basic/SourceManager.h>
+#include <llvm/ADT/BitVector.h>
+#include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/Statistic.h>
+#include <llvm/Support/raw_ostream.h>
+
+#include <gsl/pointers>
 
 #include <cassert>
 #include <map>
@@ -412,6 +419,7 @@ void LifetimeContext::traverseBlocks()
 
 bool isNoopBlock(const CFGBlock& B)
 {
+    // NOLINTNEXTLINE(readability-use-anyofallof): no obvious
     for (const auto& E : B) {
         switch (E.getKind()) {
         case CFGElement::Statement: {
