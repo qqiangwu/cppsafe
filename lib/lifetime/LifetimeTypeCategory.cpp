@@ -205,6 +205,26 @@ static std::optional<TypeClassification> getBaseClassification(const CXXRecordDe
     return TypeClassification(TypeCategory::Owner, PointeeType);
 }
 
+static QualType resolvePointerOrOwnerType(CXXRecordDecl* D, TypeSourceInfo* T, QualType TypeInfered)
+{
+    if (T) {
+        const auto Ty = T->getType();
+        const auto* TemplateTy = dyn_cast<TemplateTypeParmType>(Ty.getTypePtr());
+
+        if (!TemplateTy) {
+            return Ty;
+        }
+
+        return cast<ClassTemplateSpecializationDecl>(D)->getTemplateArgs().get(TemplateTy->getIndex()).getAsType();
+    }
+
+    if (!TypeInfered.isNull()) {
+        return TypeInfered;
+    }
+
+    return D->getASTContext().VoidTy;
+}
+
 // NOLINTNEXTLINE(readability-function-cognitive-complexity): legacy code
 static TypeClassification classifyTypeCategoryImpl(const Type* T)
 {
@@ -265,22 +285,12 @@ static TypeClassification classifyTypeCategoryImpl(const Type* T)
 #endif
 
     if (const auto* A = R->getAttr<OwnerAttr>()) {
-        if (A->getDerefTypeLoc()) {
-            Pointee = A->getDerefType();
-        }
-        if (Pointee.isNull()) {
-            Pointee = R->getASTContext().VoidTy;
-        }
+        Pointee = resolvePointerOrOwnerType(R, A->getDerefTypeLoc(), Pointee);
         return { TypeCategory::Owner, Pointee };
     }
 
     if (const auto* A = R->getAttr<PointerAttr>()) {
-        if (A->getDerefTypeLoc()) {
-            Pointee = A->getDerefType();
-        }
-        if (Pointee.isNull()) {
-            Pointee = R->getASTContext().VoidTy;
-        }
+        Pointee = resolvePointerOrOwnerType(R, A->getDerefTypeLoc(), Pointee);
         return { TypeCategory::Pointer, Pointee };
     }
 
