@@ -189,8 +189,13 @@ void CallVisitor::tryResetPSet(const CallExpr* CallE)
     }
 
     PSet P = Builder.getPSet(Obj);
-    if (isOwner(Obj) && !P.vars().empty()) {
-        P = PSet::singleton(*P.vars().begin(), 1);
+
+    // for `x->reset()`, Obj is `x`, with type pointer to CXXRecord
+    const auto* T = Obj->getType()->getPointeeCXXRecordDecl();
+    if (isOwner(Obj) || (T && classifyTypeCategory(T->getTypeForDecl()).isOwner())) {
+        if (!P.vars().empty()) {
+            P = PSet::singleton(*P.vars().begin(), 1);
+        }
     }
 
     Builder.setPSet(Builder.getPSet(Obj), P, CallE->getSourceRange());
