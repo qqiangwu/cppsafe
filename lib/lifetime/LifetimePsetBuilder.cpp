@@ -1135,7 +1135,7 @@ void PSetsBuilder::updatePSetsFromCondition(
     }
     if (const auto* CallE = dyn_cast<CallExpr>(E)) {
         if (const auto* Callee = CallE->getCalleeDecl()) {
-            const auto& ND = cast<NamedDecl>(Callee);
+            const auto* ND = cast<NamedDecl>(Callee);
             if (ND->getIdentifier() && ND->getName() == "__builtin_expect") {
                 return updatePSetsFromCondition(CallE->getArg(0), Positive, FalseBranchExitPMap, E->getSourceRange());
             }
