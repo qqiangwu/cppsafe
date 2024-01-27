@@ -8,18 +8,30 @@
 //===----------------------------------------------------------------------===//
 
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
+#include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Attrs.inc>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclTemplate.h>
+#include <clang/AST/Type.h>
+#include <clang/Basic/LLVM.h>
+#include <clang/Basic/OperatorKinds.h>
+#include <clang/Basic/Specifiers.h>
 #include <clang/Sema/Sema.h>
 
+#include <array>
+#include <cassert>
+#include <cstddef>
 #include <map>
+#include <optional>
 #include <set>
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage): legacy
 #define CLASSIFY_DEBUG 0
+
+using std::size_t;
 
 namespace clang::lifetime {
 
@@ -32,7 +44,7 @@ static bool hasMethodLike(const CXXRecordDecl* R, T Predicate, const CXXMethodDe
     auto CallBack = [Predicate, FoundMD](const CXXRecordDecl* Base) {
         return std::none_of(Base->decls_begin(), Base->decls_end(), [Predicate, FoundMD](const Decl* D) {
             if (const auto* M = dyn_cast<CXXMethodDecl>(D)) {
-                bool Found = Predicate(M);
+                const bool Found = Predicate(M);
                 if (Found && FoundMD) {
                     *FoundMD = M;
                 }
@@ -40,7 +52,7 @@ static bool hasMethodLike(const CXXRecordDecl* R, T Predicate, const CXXMethodDe
             }
             if (const auto* Tmpl = dyn_cast<FunctionTemplateDecl>(D)) {
                 if (auto* M = dyn_cast<CXXMethodDecl>(Tmpl->getTemplatedDecl())) {
-                    bool Found = Predicate(M);
+                    const bool Found = Predicate(M);
                     if (Found && FoundMD) {
                         *FoundMD = M;
                     }
@@ -119,7 +131,7 @@ static bool hasDerefOperations(const CXXRecordDecl* R)
 static bool isVectorBoolReference(const CXXRecordDecl* D)
 {
     assert(D);
-    static std::set<StringRef> StdVectorBoolReference { "__bit_const_reference" /* for libc++ */,
+    static const std::set<StringRef> StdVectorBoolReference { "__bit_const_reference" /* for libc++ */,
         "__bit_reference" /* for libc++ */, "_Bit_reference" /* for libstdc++ */, "_Vb_reference" /* for MSVC */ };
     if (!D->isInStdNamespace() || !D->getIdentifier()) {
         return false;
@@ -188,11 +200,12 @@ static std::optional<TypeClassification> getBaseClassification(const CXXRecordDe
     assert(HasOwnerBase ^ HasPointerBase);
     if (HasPointerBase) {
         return TypeClassification(TypeCategory::Pointer, PointeeType);
-    } else {
-        return TypeClassification(TypeCategory::Owner, PointeeType);
     }
+
+    return TypeClassification(TypeCategory::Owner, PointeeType);
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): legacy code
 static TypeClassification classifyTypeCategoryImpl(const Type* T)
 {
     assert(T);
@@ -348,6 +361,7 @@ TypeClassification classifyTypeCategory(const Type* T)
 
 // TODO: check gsl namespace?
 // TODO: handle clang nullability annotations?
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): legacy
 bool isNullableType(QualType QT)
 {
     auto GetKnownNullability = [](StringRef Name) -> std::optional<bool> {
@@ -421,7 +435,11 @@ static QualType getPointeeType(const CXXRecordDecl* R)
         int ParamNum;
         bool ConstOnly;
     };
-    OpTy Ops[] = { { OO_Star, 0, false }, { OO_Arrow, 0, false }, { OO_Subscript, -1, true } };
+    constexpr std::array<OpTy, 3> Ops { {
+        { OO_Star, 0, false },
+        { OO_Arrow, 0, false },
+        { OO_Subscript, -1, true },
+    } };
     for (auto P : Ops) {
         const CXXMethodDecl* F = nullptr;
         if (hasOperator(R, P.Kind, P.ParamNum, P.ConstOnly, &F) && !F->isDependentContext()) {
@@ -462,7 +480,7 @@ static QualType getPointeeTypeImpl(const Type* T)
 
     if (T->isArrayType()) {
         // TODO: use AstContext.getAsArrayType() to correctly promote qualifiers
-        const auto* AT = dyn_cast<ArrayType>(T);
+        const auto* AT = cast<ArrayType>(T);
         return AT->getElementType();
     }
 
@@ -522,6 +540,7 @@ static QualType getPointeeType(const Type* T)
     return P;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
 {
     // Until annotations are widespread, STL specific lifetimeconst
@@ -559,7 +578,7 @@ bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
                 || FD->getOverloadedOperator() == OO_Arrow;
         }
         const CXXRecordDecl* RD = MD->getParent();
-        StringRef ClassName = RD->getName();
+        const StringRef ClassName = RD->getName();
         if (RD->isInStdNamespace()) {
             if (ClassName.endswith("map") || ClassName.endswith("set")) {
                 if (FD->getDeclName().isIdentifier()
