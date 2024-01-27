@@ -7,22 +7,34 @@
 //
 //===----------------------------------------------------------------------===//
 #include "cppsafe/lifetime/Lifetime.h"
+#include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/FlowSensitive/DataflowWorklist.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/raw_ostream.h"
 
+#include <cassert>
+#include <map>
+#include <optional>
 #include <utility>
+#include <vector>
 
 #define DEBUG_TYPE "Lifetime Analysis"
 
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables): required by llvm API
 STATISTIC(MaxBlockVisitCount, "The maximum # of block visit count");
 STATISTIC(BlockVisitCount, "The cummulative # times blocks are visited");
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace clang::lifetime {
 
@@ -43,6 +55,7 @@ bool markPathReachable(const CFGBlock* From, const llvm::DenseMap<const CFGBlock
     llvm::BitVector& ToMark, Pred P)
 {
     auto ParentIt = ParentMap.end();
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-do-while): legacy code
     do {
         // Already propagated from different path.
         if (ToMark[From->getBlockID()]) {
@@ -466,4 +479,12 @@ void runAnalysis(
     LifetimeContext LC(Context, Reporter, Func, IsConvertible);
     LC.traverseBlocks();
 }
+
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): hack
+static Sema* CachedSema = nullptr;
+
+gsl::not_null<Sema*> getSema() { return CachedSema; }
+
+void setSema(Sema* S) { CachedSema = S; }
+
 } // namespace clang

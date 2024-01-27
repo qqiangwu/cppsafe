@@ -360,6 +360,18 @@ public:
 
 namespace cppsafe {
 
+void AstConsumer::InitializeSema(clang::Sema& S)
+{
+    Sema = &S;
+    lifetime::setSema(&S);
+}
+
+void AstConsumer::ForgetSema()
+{
+    Sema = nullptr;
+    lifetime::setSema(nullptr);
+}
+
 bool AstConsumer::HandleTopLevelDecl(clang::DeclGroupRef D)
 {
     Expects(Sema != nullptr);
