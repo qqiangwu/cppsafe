@@ -1133,6 +1133,15 @@ void PSetsBuilder::updatePSetsFromCondition(
         }
         return;
     }
+    if (const auto* CallE = dyn_cast<CallExpr>(E)) {
+        if (const auto* Callee = CallE->getCalleeDecl()) {
+            const auto& ND = cast<NamedDecl>(Callee);
+            if (ND->getIdentifier() && ND->getName() == "__builtin_expect") {
+                return updatePSetsFromCondition(CallE->getArg(0), Positive, FalseBranchExitPMap, E->getSourceRange());
+            }
+        }
+        return;
+    }
 
     auto TC = classifyTypeCategory(E->getType());
     if (E->isLValue() && (TC == TypeCategory::Pointer || TC == TypeCategory::Owner)) {
