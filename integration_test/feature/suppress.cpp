@@ -9,6 +9,10 @@ constexpr int Global = 0;
 [[clang::annotate("gsl::lifetime_pre", "p", Global)]]
 void call(int* p);
 
+#define CPPSAFE_SUPPRESS [[gsl::suppress("lifetime")]]
+
+#define DEREF(p) *p
+
 int foo2(int* p) // expected-note {{the parameter is assumed to be potentially null}}
 {
     {
@@ -28,6 +32,14 @@ int foo2(int* p) // expected-note {{the parameter is assumed to be potentially n
 
     [[gsl::suppress("lifetime")]]
     call(nullptr);
+
+    CPPSAFE_SUPPRESS
+    call(nullptr);
+
+    [[gsl::suppress("lifetime")]]
+    if (true) {
+        DEREF(p);
+    }
 
     [[gsl::suppress("lifetime")]]
     return *p;

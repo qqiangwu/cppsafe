@@ -115,17 +115,21 @@ class Reporter : public LifetimeReporterBase {
     bool isSuppressed(SourceRange Range)
     {
         using namespace ast_matchers;
-
         for (const auto& N : match(stmt(forEachDescendant(stmt().bind("stmt"))), *Fn->getBody(), S.getASTContext())) {
+            auto& SM = S.getSourceManager();
+
             const auto* S = N.getNodeAs<Stmt>("stmt");
-            if (!S->getSourceRange().fullyContains(Range)) {
+
+            // use SM.getFileLoc to expand macro loc if necessary
+            const auto StmtBeg = SM.getFileLoc(S->getSourceRange().getBegin());
+            const auto StmtEnd = S->getSourceRange().getEnd();
+            const auto WarnBeg = SM.getFileLoc(Range.getBegin());
+            const auto WarnEnd = Range.getEnd();
+            if (StmtEnd < WarnBeg) {
                 continue;
             }
-            if (S->getSourceRange().getEnd() < Range.getBegin()) {
+            if (StmtBeg > WarnEnd) {
                 continue;
-            }
-            if (S->getSourceRange().getBegin() > Range.getEnd()) {
-                return false;
             }
 
             if (const auto* DS = dyn_cast<DeclStmt>(S)) {
