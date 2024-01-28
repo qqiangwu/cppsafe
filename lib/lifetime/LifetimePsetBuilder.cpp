@@ -831,6 +831,30 @@ public:
             setPSet(PSet::singleton(VD), PSet::singleton(VD, 1), Range);
             break;
         }
+        case TypeCategory::Aggregate: {
+            setPSet(PSet::singleton(VD), PSet::singleton(VD), Range);
+
+            const auto* IL = dyn_cast<InitListExpr>(Initializer);
+
+            for (const auto* FD : VD->getType()->getAsCXXRecordDecl()->fields()) {
+                if (!classifyTypeCategory(FD->getType()).isPointer()) {
+                    continue;
+                }
+
+                const Variable Member = Variable(VD, FD);
+                if (IL && FD->getFieldIndex() < IL->getNumInits()) {
+                    setPSet(PSet::singleton(Member), getPSet(IL->getInit(FD->getFieldIndex())), VD->getSourceRange());
+                } else if (isNullableType(FD->getType())) {
+                    setPSet(PSet::singleton(Member),
+                        PSet::invalid(InvalidationReason::NotInitialized(VD->getLocation(), CurrentBlock)),
+                        VD->getSourceRange());
+                } else {
+                    setPSet(PSet::singleton(Member), PSet::singleton(Member), VD->getSourceRange());
+                }
+            }
+
+            break;
+        }
         default:
             // TODO: now for all non-Pointer, set pset(v) = {v}
             setPSet(PSet::singleton(VD), PSet::singleton(VD), Range);

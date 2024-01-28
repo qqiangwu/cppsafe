@@ -38,6 +38,13 @@ public:
         : ContractVariable(VD)
     {
     }
+
+    Variable(const VarDecl* VD, const FieldDecl* FD)
+        : Variable(VD)
+    {
+        addFieldRef(FD);
+    }
+
     Variable(const MaterializeTemporaryExpr* MT)
         : ContractVariable(MT)
     {
