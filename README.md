@@ -365,6 +365,43 @@ public:
 };
 ```
 
+# Defects
+There are some defects to the underlying model, currently I have no idea how to cope with it.
+
+## Move elements of containers
+The following code will be flagged.
+
+```cpp
+void foo(std::vector<std::unique_ptr<int>>& cont, std::unique_ptr<int>& p)
+{
+    for (auto& x : cont) {
+        p = std::move(x);
+    }
+}
+
+void bar(std::vector<std::unique_ptr<int>>& cont, std::unique_ptr<int>& p)
+{
+    for (size_t i = 0; i < cont.size(); ++i) {
+        p = std::move(cont[i]);
+    }
+}
+```
+
+According to the spec:
+
+> When an Owner o is moved from another Owner rhs, the ownership moves from rhs to o, and so in all psets
+replace rhs with o.
+
+But it does not handle the above case. So currently we allow it since moving subobjects are always dangerous. Maybe you can wrap it with:
+
+```cpp
+// pset(container) = {*container}
+move_each(container, [](auto&& elem){
+    // use elem
+});
+// pset(container) = {invalid}
+```
+
 # Difference from the original implementation
 ## Output variable
 ### Return check
