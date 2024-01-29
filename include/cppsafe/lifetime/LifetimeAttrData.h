@@ -15,6 +15,7 @@
 #define LLVM_CLANG_AST_LIFETIMEATTRDATA_H
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
+#include <clang/AST/DeclCXX.h>
 #include <set>
 
 namespace clang {
@@ -24,6 +25,10 @@ class MaterializeTemporaryExpr;
 /// This represents an abstract memory location that is used in the lifetime
 /// contract representation.
 struct ContractVariable {
+    ContractVariable(const BindingDecl* VD)
+        : Var(VD)
+    {
+    }
     ContractVariable(const VarDecl* PVD, int Deref = 0)
         : Var(PVD)
     {
@@ -94,7 +99,7 @@ struct ContractVariable {
     }
 
 protected:
-    llvm::PointerUnion<const VarDecl*, const Expr*, const RecordDecl*> Var;
+    llvm::PointerUnion<const VarDecl*, const BindingDecl*, const Expr*, const RecordDecl*> Var;
 
     /// Possibly empty list of fields and deref operations on the base.
     /// The First entry is the field on base, next entry is the field inside

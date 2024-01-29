@@ -561,7 +561,8 @@ bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
 
     // std::begin, std::end free functions.
     if (FD->isInStdNamespace() && FD->getDeclName().isIdentifier()
-        && (FD->getName() == "begin" || FD->getName() == "end")) {
+        && (FD->getName() == "begin" || FD->getName() == "end" || FD->getName() == "get"
+            || FD->getName() == "forward")) {
         return true;
     }
 
