@@ -15,6 +15,7 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
+#include <clang/AST/DeclCXX.h>
 #include <llvm/ADT/StringExtras.h>
 #include <range/v3/algorithm/find_if_not.hpp>
 #include <range/v3/view/reverse.hpp>
@@ -26,6 +27,7 @@ namespace clang::lifetime {
 
 /// A Variable can represent a base:
 /// - a local variable: Var contains a non-null VarDecl
+/// - a binding variable: Var contains a non-null BindingDecl
 /// - the this pointer: Var contains a non-null RecordDecl
 /// - temporary: Var contains a non-null MaterializeTemporaryExpr
 /// - the return value of the current function: Var contains a null Expr
@@ -43,6 +45,11 @@ public:
         : Variable(VD)
     {
         addFieldRef(FD);
+    }
+
+    Variable(const BindingDecl* BD)
+        : ContractVariable(BD)
+    {
     }
 
     Variable(const MaterializeTemporaryExpr* MT)
@@ -118,6 +125,8 @@ public:
         assert(!isReturnVal() && "We don't store types of return values here");
         if (const auto* VD = asVarDecl()) {
             return VD->getType();
+        } else if (const auto* BD = asBindingDecl()) {
+            return BD->getType();
         } else if (const MaterializeTemporaryExpr* MT = asTemporary()) {
             return MT->getType();
         } else if (const RecordDecl* RD = asThis()) {
@@ -199,8 +208,10 @@ public:
                 Ret = "(temporary)";
             }
 
-        } else if (auto* VD = asVarDecl()) {
+        } else if (const auto* VD = asVarDecl()) {
             Ret = VD->getName().str();
+        } else if (const auto* BD = asBindingDecl()) {
+            Ret = BD->getName().str();
         } else if (isThisPointer()) {
             Ret = "this";
         } else if (isReturnVal()) {
@@ -258,6 +269,8 @@ private:
         }
         return Base;
     }
+
+    const BindingDecl* asBindingDecl() const { return Var.dyn_cast<const BindingDecl*>(); }
 
     const MaterializeTemporaryExpr* asTemporary() const
     {

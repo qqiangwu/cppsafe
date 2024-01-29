@@ -17,6 +17,7 @@
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
+#include <clang/AST/DeclBase.h>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclTemplate.h>
 #include <clang/AST/Expr.h>
@@ -182,7 +183,8 @@ public:
 
     PSet varRefersTo(const Variable& V, SourceRange Range) const
     {
-        if (V.getType()->isReferenceType()) {
+        // HACK for DecompositionDecl without reference
+        if (V.getType()->isReferenceType() || isa_and_present<DecompositionDecl>(V.asVarDecl())) {
             auto P = getPSet(V);
             if (checkPSetValidity(P, Range)) {
                 return P;
@@ -201,9 +203,11 @@ public:
         } else if (const auto* VD = dyn_cast<VarDecl>(DeclRef->getDecl())) {
             setPSet(DeclRef, varRefersTo(VD, DeclRef->getSourceRange()));
         } else if (const auto* B = dyn_cast<BindingDecl>(DeclRef->getDecl())) {
-            // TODO: support BindingDecl in Variables?
-            (void)B;
-            setPSet(DeclRef, {});
+            if (const auto* Var = B->getHoldingVar()) {
+                setPSet(DeclRef, getPSet(Var));
+            } else {
+                setPSet(DeclRef, derefPSet(varRefersTo(B, DeclRef->getSourceRange())));
+            }
         } else if (const auto* FD = dyn_cast<FieldDecl>(DeclRef->getDecl())) {
             Variable V = Variable::thisPointer(FD->getParent());
             V.deref(); // *this
@@ -806,7 +810,11 @@ public:
     // NOLINTNEXTLINE(readability-identifier-naming): required by parent
     void VisitVarDecl(const VarDecl* VD)
     {
-        // TODO: handle DecompositionDecl.
+        if (const auto* DD = dyn_cast<DecompositionDecl>(VD)) {
+            visitDecompositionDecl(DD);
+            return;
+        }
+
         const Expr* Initializer = VD->getInit();
         const SourceRange Range = VD->getSourceRange();
 
@@ -859,6 +867,34 @@ public:
             // TODO: now for all non-Pointer, set pset(v) = {v}
             setPSet(PSet::singleton(VD), PSet::singleton(VD), Range);
             break;
+        }
+    }
+
+    void visitDecompositionDecl(const DecompositionDecl* DD)
+    {
+        // HACK for DecompositionDecl without reference
+        if (const auto* CtorExpr = dyn_cast<CXXConstructExpr>(DD->getInit())) {
+            setPSet(PSet::singleton(DD), getPSet(CtorExpr->getArg(0)), DD->getSourceRange());
+        } else if (const auto* CallE = dyn_cast<CallExpr>(DD->getInit())) {
+            Visit(CallE);
+
+            setPSet(PSet::singleton(DD), getPSet(CallE), DD->getSourceRange());
+        } else {
+            setPSet(PSet::singleton(DD), getPSet(DD->getInit()), DD->getSourceRange());
+        }
+
+        for (const auto* BD : DD->bindings()) {
+            if (!classifyTypeCategory(BD->getType()).isPointer()) {
+                continue;
+            }
+
+            if (const auto* MD = dyn_cast<MemberExpr>(BD->getBinding())) {
+                Visit(MD->getBase()); // eval: declRef to DecompositionDecl
+                Visit(MD); // eval: member to declRef
+
+                setPSet(PSet::singleton(BD), getPSet(MD), BD->getSourceRange());
+            }
+            // for auto [x, y] = tuple; see VisitDeclRefExpr
         }
     }
 
