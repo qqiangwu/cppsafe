@@ -132,8 +132,8 @@ void f4(std::function<void()> f, span<int> s);
 ## Options
 By default, cppsafe aims to provide lowest false-positive, lots of checks are not performed. You can use the following options to disable or enable more checks.
 
-### `--Wno-lifetime-null`
-Cppsafe will check nullness of parameters.
+### `--Wno-lifetime-null`/`--Wno-lifetime-call-null`
+Cppsafe will check nullness of pointers.
 
 ```cpp
 void foo(int* a, gsl::not_null<int*> b, int* c)
@@ -150,7 +150,7 @@ void foo(int* a, gsl::not_null<int*> b, int* c)
 }
 ```
 
-You can use `--Wno-lifetime-null` to disable all nullness check.
+You can use `--Wno-lifetime-call-null` to disable all nullness check for parameters and return values.
 
 ```cpp
 void foo(int* a, gsl::not_null<int*> b, int* c)
@@ -164,6 +164,26 @@ void foo(int* a, gsl::not_null<int*> b, int* c)
     int z = *c;  // ok
 }
 ```
+
+You can use `--Wno-lifetime-null` to disable all nullness check.
+
+```cpp
+void foo(bool x)
+{
+    int* p = nullptr;
+    if (x) p = new int{};
+    if (x) *p;  // warning
+    if (x) {
+        assert(p);
+        *p;  // ok
+    }
+    if (p) {
+        *p;  // ok
+    }
+}
+```
+
+Cppsafe currently cannot handle this. Maybe in the future, cppsafe will use path-sensitive check to do null check.
 
 ### `--Wlifetime-post`
 Add member function postcondition check.

@@ -372,7 +372,7 @@ void LifetimeContext::traverseBlocks()
     auto& BC = getBlockContext(Start);
     // ExitPSets are the function parameters.
     getLifetimeContracts(
-        BC.ExitPMap, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter, true, Reporter.getOptions().NoLifetimeNull);
+        BC.ExitPMap, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter, true, Reporter.getOptions().NoLifetimeCallNull);
     if (const auto* Method = dyn_cast<CXXMethodDecl>(FuncDecl)) {
         createEntryPsetsForMembers(Method, BC.ExitPMap);
     }
