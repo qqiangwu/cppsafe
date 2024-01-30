@@ -325,10 +325,12 @@ private:
                 }
             }
             if (Ret.isEmpty()) {
+                // globals are never null unless annotated manually
                 Ret.ContainsGlobal = true;
+            } else {
+                // For not_null types are never null regardless of type matching.
+                Ret.ContainsNull = isNullableType(OutputType);
             }
-            // For not_null types are never null regardless of type matching.
-            Ret.ContainsNull = isNullableType(OutputType);
             return Ret;
         };
 

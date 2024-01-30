@@ -12,12 +12,12 @@ void test()
     __lifetime_contracts(&Foo);
     // expected-warning@-1 {{pset(Pre(p)) = ((null), *p)}}
     // expected-warning@-2 {{pset(Pre(*p)) = ((invalid))}}
-    // expected-warning@-3 {{pset(Post(*p)) = ((global), (null))}}
+    // expected-warning@-3 {{pset(Post(*p)) = ((global))}}
 
     __lifetime_contracts(&Foo2);
     // expected-warning@-1 {{pset(Pre(p)) = (*p)}}
     // expected-warning@-2 {{pset(Pre(*p)) = ((invalid))}}
-    // expected-warning@-3 {{pset(Post(*p)) = ((global), (null))}}
+    // expected-warning@-3 {{pset(Post(*p)) = ((global))}}
 
     __lifetime_contracts(&Bar);
     // expected-warning@-1 {{pset(Pre(p)) = ((null), *p)}}

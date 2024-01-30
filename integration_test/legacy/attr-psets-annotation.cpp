@@ -124,7 +124,7 @@ void p7(int *a, int *b, int *&c) { c = a; }
 [[clang::annotate("gsl::lifetime_post", "*c", "a")]]
 void p8(int *a, int *b, int **c) { if (c) *c = a; }
 void p9(int *a, int *b, int *&c [[clang::annotate("gsl::lifetime_in")]]) {}
-int* p10() { return 0; }
+int* p10() { return 0; }  // expected-warning {{returning a null pointer where a non-null pointer is expected}}
 // TODO: contracts for function pointers?
 
 void f() {
@@ -207,6 +207,6 @@ void f() {
   // expected-warning@-3 {{pset(Pre(c)) = (*c)}}
   // expected-warning@-4 {{pset(Pre(*c)) = ((null), **c)}}
   __lifetime_contracts(p10);
-  // expected-warning@-1 {{pset(Post((return value))) = ((global), (null))}}
+  // expected-warning@-1 {{pset(Post((return value))) = ((global))}}
 }
 } // namespace dump_contracts
