@@ -153,6 +153,15 @@ class Reporter : public LifetimeReporterBase {
         return false;
     }
 
+    bool isNullSuppressed(WarnType WT) const
+    {
+        if (!Options.NoLifetimeNull) {
+            return false;
+        }
+
+        return WT == WarnType::Null || WT == WarnType::AssignNull || WT == WarnType::DerefNull;
+    }
+
 public:
     Reporter(Sema& S, const FunctionDecl* Fn, const cppsafe::CppsafeOptions& Opts)
         : S(S)
@@ -243,11 +252,12 @@ public:
             S.Diag(Range.getBegin(), WarningIds[warn_pset_of_global]) << VariableName << ActualPset << Range;
         }
     }
+
     void warnNullDangling(WarnType T, SourceRange Range, ValueSource Source, StringRef ValueName, bool Possibly) final
     {
         assert(T == WarnType::Dangling || T == WarnType::Null);
 
-        if (isSuppressed(Range)) {
+        if (isSuppressed(Range) || isNullSuppressed(T)) {
             IgnoreCurrentWarning = true;
             return;
         }
@@ -256,11 +266,12 @@ public:
                 << (int)Source << ValueName << Possibly << Range;
         }
     }
+
     void warn(WarnType T, SourceRange Range, bool Possibly) final
     {
         assert((unsigned)T < sizeof(Warnings) / sizeof(Warnings[0]));
 
-        if (isSuppressed(Range)) {
+        if (isSuppressed(Range) || isNullSuppressed(T)) {
             IgnoreCurrentWarning = true;
             return;
         }
@@ -268,6 +279,7 @@ public:
             S.Diag(Range.getBegin(), WarningIds[(LifetimeDiag)Warnings.at((int)T)]) << Possibly << Range;
         }
     }
+
     void warnNonStaticThrow(SourceRange Range, StringRef ThrownPset) final
     {
         if (isSuppressed(Range)) {
@@ -278,6 +290,7 @@ public:
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_non_static_throw]) << ThrownPset << Range;
         }
     }
+
     void warnWrongPset(
         SourceRange Range, ValueSource Source, StringRef ValueName, StringRef RetPset, StringRef ExpectedPset) final
     {
@@ -290,6 +303,7 @@ public:
                 << (int)Source << ValueName << RetPset << ExpectedPset << Range;
         }
     }
+
     void warnPointerArithmetic(SourceRange Range) final
     {
         if (isSuppressed(Range)) {
@@ -306,6 +320,7 @@ public:
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_lifetime_pointer_arithmetic]);
         }
     }
+
     void warnUnsafeCast(SourceRange Range) final
     {
         if (isSuppressed(Range)) {
@@ -334,12 +349,14 @@ public:
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_unsupported_expression]) << Range;
         }
     }
+
     void notePointeeLeftScope(SourceRange Range, std::string Name) final
     {
         if (!IgnoreCurrentWarning) {
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::note_pointee_left_scope]) << Name << Range;
         }
     }
+
     void note(NoteType T, SourceRange Range) final
     {
         assert((unsigned)T < sizeof(Notes) / sizeof(Notes[0]));
