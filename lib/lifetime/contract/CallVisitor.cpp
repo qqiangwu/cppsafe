@@ -15,6 +15,7 @@
 #include <clang/Basic/LLVM.h>
 #include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/SourceLocation.h>
+#include <llvm/ADT/STLExtras.h>
 
 #include <cassert>
 
@@ -234,8 +235,14 @@ void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Ex
 {
     // The sources of null are the actuals, not the formals.
     if (!Checking) {
-        for (auto& VarToPSet : Fill) {
-            VarToPSet.second.removeNull();
+        // int* p = foo(&n);
+        // p's nullness is derived from @n
+        // int* p = get();
+        // p is the same as postcondition
+        for (auto& PSet : llvm::make_second_range(Fill)) {
+            if (!PSet.isNullableGlobal()) {
+                PSet.removeNull();
+            }
         }
     }
 

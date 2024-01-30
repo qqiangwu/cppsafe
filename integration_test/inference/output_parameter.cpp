@@ -19,7 +19,7 @@ void foo1(int** p)
     __lifetime_contracts(&foo1);
     // expected-warning@-1 {{pset(Pre(p)) = ((null), *p)}}
     // expected-warning@-2 {{pset(Pre(*p)) = ((invalid))}}
-    // expected-warning@-3 {{pset(Post(*p)) = ((global), (null))}}
+    // expected-warning@-3 {{pset(Post(*p)) = ((global))}}
 }
 
 void foo3(Ptr2* p)

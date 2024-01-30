@@ -518,6 +518,7 @@ public:
 
     bool containsGlobal() const { return ContainsGlobal; }
     bool isGlobal() const { return ContainsGlobal && !ContainsNull && !ContainsInvalid && Vars.empty(); }
+    bool isNullableGlobal() const { return ContainsGlobal && ContainsNull && !ContainsInvalid && Vars.empty(); }
     void addGlobal() { ContainsGlobal = true; }
 
     const std::set<Variable>& vars() const { return Vars; }
