@@ -21,6 +21,8 @@ class copyable_function {};
 
 }
 
+int* get();
+
 struct Test {
 
 void test_lambda(int p, double& d, int* q)
@@ -45,6 +47,14 @@ void test_lambda2()
     Value v;
     auto fn = [&o, &v]{};
     __lifetime_pset(fn);  // expected-warning {{pset(fn) = (o, v)}}
+}
+
+void test_lambda_init()
+{
+    int a;
+    int b;
+    auto fn = [x = &a, y = get(), &z = b]{};
+    __lifetime_pset(fn);  // expected-warning {{((global), a, b)}}
 }
 
 void test_functional()
