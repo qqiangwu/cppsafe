@@ -915,7 +915,7 @@ public:
                 }
 
                 if (V.getCaptureKind() == LCK_ByRef) {
-                    if (classifyTypeCategory(VD->getType()).isIndirection()) {
+                    if (VD->getType()->isReferenceType()) {
                         PS.merge(getPSet(VD));
                     } else {
                         PS.merge(PSet::singleton(VD));
