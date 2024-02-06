@@ -4,6 +4,10 @@ void __lifetime_pset(T&&) {}
 template <class T>
 void __lifetime_type_category_arg(T&&) {}
 
+struct [[gsl::Owner(int)]] Owner {};
+
+struct Value {};
+
 namespace std {
 
 template <class T>
@@ -33,6 +37,14 @@ void test_lambda(int p, double& d, int* q)
     __lifetime_pset(fn);  // expected-warning {{pset(fn) = ((null), *d, *q, *this, p, z)}}
     __lifetime_type_category_arg(fn);
     // expected-warning@-1 {{lifetime type category is Pointer with pointee void}}
+}
+
+void test_lambda2()
+{
+    Owner o;
+    Value v;
+    auto fn = [&o, &v]{};
+    __lifetime_pset(fn);  // expected-warning {{pset(fn) = (o, v)}}
 }
 
 void test_functional()

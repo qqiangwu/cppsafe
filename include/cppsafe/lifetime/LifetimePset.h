@@ -675,8 +675,8 @@ public:
                 if (const auto Ty = Var.getType(); !Ty.isNull()) {
                     if (const auto* RD = Ty->getAsCXXRecordDecl()) {
                         if (FD->getParent() == RD
-                            || (RD->hasDefinition() && RD->isDerivedFrom(dyn_cast<CXXRecordDecl>(FD->getParent())))
-                            || dyn_cast<CXXRecordDecl>(FD->getParent())->isDerivedFrom(RD)) {
+                            || (RD->hasDefinition() && RD->isDerivedFrom(cast<CXXRecordDecl>(FD->getParent())))
+                            || cast<CXXRecordDecl>(FD->getParent())->isDerivedFrom(RD)) {
                             return true;
                         }
                     }
