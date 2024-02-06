@@ -914,9 +914,16 @@ public:
                     continue;
                 }
 
+                auto GetVarDeclPset = [this](const VarDecl* VD) {
+                    if (const auto* I = VD->getInit()) {
+                        return getPSet(I);
+                    }
+                    return getPSet(VD);
+                };
+
                 if (V.getCaptureKind() == LCK_ByRef) {
                     if (VD->getType()->isReferenceType()) {
-                        PS.merge(getPSet(VD));
+                        PS.merge(GetVarDeclPset(VD));
                     } else {
                         PS.merge(PSet::singleton(VD));
                     }
@@ -924,7 +931,7 @@ public:
                 }
 
                 if (classifyTypeCategory(VD->getType()).isPointer()) {
-                    PS.merge(getPSet(VD));
+                    PS.merge(GetVarDeclPset(VD));
                 }
             }
         }
