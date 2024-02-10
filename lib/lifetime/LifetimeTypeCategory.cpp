@@ -20,6 +20,7 @@
 #include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/Specifiers.h>
 #include <clang/Sema/Sema.h>
+#include <llvm/ADT/STLExtras.h>
 
 #include <array>
 #include <cassert>
@@ -591,10 +592,16 @@ bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
         const CXXRecordDecl* RD = MD->getParent();
         const StringRef ClassName = RD->getName();
         if (RD->isInStdNamespace()) {
+            static constexpr auto MapConstFn = std::to_array<StringRef>({
+                "insert",
+                "emplace",
+                "emplace_hint",
+                "find",
+                "lower_bound",
+                "upper_bound",
+            });
             if (ClassName.endswith("map") || ClassName.endswith("set")) {
-                if (FD->getDeclName().isIdentifier()
-                    && (FD->getName() == "insert" || FD->getName() == "emplace" || FD->getName() == "emplace_hint"
-                        || FD->getName() == "find")) {
+                if (FD->getDeclName().isIdentifier() && (llvm::is_contained(MapConstFn, FD->getName()))) {
                     return true;
                 }
             }
@@ -602,10 +609,18 @@ bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum)
                 return FD->getDeclName().isIdentifier() && FD->getName() != "clear" && FD->getName() != "assign";
             }
         }
-        return FD->getDeclName().isIdentifier()
-            && (FD->getName() == "at" || FD->getName() == "data" || FD->getName() == "begin" || FD->getName() == "end"
-                || FD->getName() == "rbegin" || FD->getName() == "rend" || FD->getName() == "back"
-                || FD->getName() == "front");
+
+        static constexpr auto ContainerConstFn = std::to_array<StringRef>({
+            "at",
+            "data",
+            "begin",
+            "end",
+            "rbegin",
+            "rend",
+            "front",
+            "back",
+        });
+        return FD->getDeclName().isIdentifier() && llvm::is_contained(ContainerConstFn, FD->getName());
     }
     return false;
 }
