@@ -13,30 +13,30 @@ public:
 
 void foo(std::unique_ptr<int>* p)
 {
-    __lifetime_pset(*p);  // expected-warning {{(**p)}}
+    __lifetime_pset(*p);  // expected-warning {{pset(*p) = (**p)}}
     (*p).reset();
-    __lifetime_pset(*p);  // expected-warning {{(**p)}}
+    __lifetime_pset(*p);  // expected-warning {{pset(*p) = (**p)}}
 }
 
 void foo2(std::unique_ptr<int>* p)
 {
-    __lifetime_pset(*p);  // expected-warning {{(**p)}}
+    __lifetime_pset(*p);  // expected-warning {{pset(*p) = (**p)}}
     p->reset();
-    __lifetime_pset(*p);  // expected-warning {{(**p)}}
+    __lifetime_pset(*p);  // expected-warning {{pset(*p) = (**p)}}
 }
 
 void bar(std::unique_ptr<int>& p)
 {
-    __lifetime_pset(p);  // expected-warning {{(**p)}}
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (**p)}}
     p.reset();
-    __lifetime_pset(p);  // expected-warning {{(**p)}}
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (**p)}}
 }
 
 void coo(std::unique_ptr<int> p)
 {
-    __lifetime_pset(p);  // expected-warning {{(*p)}}
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (*p)}}
     p.reset();
-    __lifetime_pset(p);  // expected-warning {{(*p)}}
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (*p)}}
 }
 
 struct Value
@@ -45,8 +45,35 @@ struct Value
 
     void test()
     {
-        __lifetime_pset(*this);  // expected-warning {{(unknown)}}
+        __lifetime_pset(*this);  // expected-warning {{pset(*this) = ((unknown))}}
         reset();
-        __lifetime_pset(*this);  // expected-warning {{(*this)}}
+        __lifetime_pset(*this);  // expected-warning {{pset(*this) = (*this)}}
     }
 };
+
+struct [[gsl::Pointer(int)]] Ptr {
+    void reset();
+};
+
+void foo(Ptr* p)
+{
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (*p)}}
+    __lifetime_pset(*p);  // expected-warning {{pset(*p) = (**p)}}
+    p->reset();
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (*p)}}
+    __lifetime_pset(*p);  // expected-warning {{pset(*p) = ((global))}}
+}
+
+void foo(Ptr& p)
+{
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (**p)}}
+    p.reset();
+    __lifetime_pset(p);  // expected-warning {{pset(p) = ((global))}}
+}
+
+void foo(Ptr p)
+{
+    __lifetime_pset(p);  // expected-warning {{(*p)}}
+    p.reset();
+    __lifetime_pset(p);  // expected-warning {{pset(p) = ((global))}}
+}
