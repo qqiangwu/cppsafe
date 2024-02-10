@@ -456,6 +456,28 @@ private:
 
 } // anonymous namespace
 
+static ContractPSet adjustPSet(const ContractPSet& P, const CXXMethodDecl* Derived)
+{
+    auto RetP = P;
+
+    RetP.Vars
+        = P.Vars | ranges::views::transform([=](const auto& V) { return V.replace(Derived); }) | ranges::to<std::set>();
+
+    return RetP;
+}
+
+static void copyContract4Derived(
+    const LifetimeContractAttr* BaseAttr, const CXXMethodDecl* Derived, LifetimeContractAttr* DerivedAttr)
+{
+    for (const auto& [V, P] : BaseAttr->PrePSets) {
+        DerivedAttr->PrePSets[V.replace(Derived)] = adjustPSet(P, Derived);
+    }
+
+    for (const auto& [V, P] : BaseAttr->PostPSets) {
+        DerivedAttr->PostPSets[V.replace(Derived)] = adjustPSet(P, Derived);
+    }
+}
+
 static LifetimeContractAttr* getLifetimeContracts(const FunctionDecl* FD)
 {
     static std::map<const FunctionDecl*, LifetimeContractAttr> ContractCache;
@@ -469,19 +491,43 @@ static LifetimeContractAttr* getLifetimeContracts(const FunctionDecl* FD)
     return &It->second;
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): todo
-void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTContext& ASTCtxt, const CFGBlock* Block,
-    IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter, bool Pre, bool IgnoreNull)
+static LifetimeContractAttr* getLifetimeContracts(
+    const FunctionDecl* FD, const ASTContext& ASTCtxt, IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter)
 {
     auto* ContractAttr = getLifetimeContracts(FD);
 
-    // TODO: this check is insufficient for functions like int f(int);
     if (!ContractAttr->Filled) {
-        const PSetCollector Collector(FD, ASTCtxt, IsConvertible, Reporter);
-        Collector.fillPSetsForDecl(ContractAttr);
+        const auto* BaseMD = std::invoke([=]() -> const CXXMethodDecl* {
+            const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+            if (!MD || MD->overridden_methods().empty()) {
+                return nullptr;
+            }
+
+            while (!MD->overridden_methods().empty()) {
+                MD = *MD->begin_overridden_methods();
+            }
+
+            return MD;
+        });
+
+        if (BaseMD) {
+            copyContract4Derived(
+                getLifetimeContracts(BaseMD, ASTCtxt, IsConvertible, Reporter), cast<CXXMethodDecl>(FD), ContractAttr);
+        } else {
+            const PSetCollector Collector(FD, ASTCtxt, IsConvertible, Reporter);
+            Collector.fillPSetsForDecl(ContractAttr);
+        }
 
         ContractAttr->Filled = true;
     }
+
+    return ContractAttr;
+}
+
+void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTContext& ASTCtxt, const CFGBlock* Block,
+    IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter, bool Pre, bool IgnoreNull)
+{
+    auto* ContractAttr = getLifetimeContracts(FD, ASTCtxt, IsConvertible, Reporter);
 
     if (Pre) {
         for (const auto& Pair : ContractAttr->PrePSets) {
@@ -502,10 +548,12 @@ void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTConte
             }
             PMap.emplace(V, PS);
         }
-    } else {
-        for (const auto& Pair : ContractAttr->PostPSets) {
-            PMap.emplace(Variable(Pair.first, FD), PSet(Pair.second, FD));
-        }
+
+        return;
+    }
+
+    for (const auto& Pair : ContractAttr->PostPSets) {
+        PMap.emplace(Variable(Pair.first, FD), PSet(Pair.second, FD));
     }
 }
 

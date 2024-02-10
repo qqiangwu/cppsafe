@@ -98,6 +98,21 @@ struct ContractVariable {
         return V;
     }
 
+    ContractVariable replace(const CXXMethodDecl* Derived) const
+    {
+        auto Ret = *this;
+
+        if (const auto* PVD = asParmVarDecl()) {
+            Ret.Var = Derived->getParamDecl(PVD->getFunctionScopeIndex());
+        } else if (isThisPointer()) {
+            Ret.Var = Derived->getParent();
+        } else {
+            assert(false);
+        }
+
+        return Ret;
+    }
+
 protected:
     llvm::PointerUnion<const VarDecl*, const BindingDecl*, const Expr*, const RecordDecl*> Var;
 
