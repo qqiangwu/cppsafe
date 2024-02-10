@@ -298,6 +298,17 @@ static TypeClassification classifyTypeCategoryImpl(const Type* T)
     // Do not attempt to infer implicit Pointer/Owner if we cannot deduce
     // the DerefType.
     if (!Pointee.isNull()) {
+        // for std::unique_ptr<char[]>
+        if (const auto* T = dyn_cast<ClassTemplateSpecializationDecl>(R)) {
+            const auto* TD = T->getSpecializedTemplate()->getTemplatedDecl();
+            if (TD->hasAttr<OwnerAttr>()) {
+                return { TypeCategory::Owner, Pointee };
+            }
+            if (TD->hasAttr<PointerAttr>()) {
+                return { TypeCategory::Pointer, Pointee };
+            }
+        }
+
         if (auto Cat = classifyStd(T)) {
             return { *Cat, Pointee };
         }

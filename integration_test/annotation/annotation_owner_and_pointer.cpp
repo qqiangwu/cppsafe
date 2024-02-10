@@ -24,3 +24,9 @@ void test_annotation()
     __lifetime_type_category<C1<int>>();  // expected-warning {{lifetime type category is Pointer with pointee int}}
     __lifetime_type_category<C2<int>>();  // expected-warning {{lifetime type category is Owner with pointee int}}
 }
+
+void test_array()
+{
+    __lifetime_type_category<C1<char[]>>();  // expected-warning {{Pointer with pointee char[]}}
+    __lifetime_type_category<C2<char[]>>();  // expected-warning {{Owner with pointee char[]}}
+}
