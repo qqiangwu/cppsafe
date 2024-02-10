@@ -189,10 +189,16 @@ void CallVisitor::tryResetPSet(const CallExpr* CallE)
         return;
     }
 
-    PSet P = Builder.getPSet(Obj);
-
     // for `x->reset()`, Obj is `x`, with type pointer to CXXRecord
     const auto* T = Obj->getType()->getPointeeCXXRecordDecl();
+    if ((!T && isPointer(Obj)) || (T && classifyTypeCategory(T->getTypeForDecl()).isPointer())) {
+        const bool Nullable = isNullableType(T ? T->getTypeForDecl()->getCanonicalTypeUnqualified() : Obj->getType());
+
+        Builder.setPSet(Builder.getPSet(Obj), PSet::globalVar(Nullable), CallE->getSourceRange());
+        return;
+    }
+
+    PSet P = Builder.getPSet(Obj);
     if (isOwner(Obj) || (T && classifyTypeCategory(T->getTypeForDecl()).isOwner())) {
         if (!P.vars().empty()) {
             P = PSet::singleton(*P.vars().begin(), 1);
