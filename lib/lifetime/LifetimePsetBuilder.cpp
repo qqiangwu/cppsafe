@@ -690,7 +690,8 @@ public:
         const InvalidationReason Reason = VD ? InvalidationReason::PointeeLeftScope(Range, CurrentBlock, VD)
                                              : InvalidationReason::TemporaryLeftScope(Range, CurrentBlock);
         if (VD) {
-            PMap.erase(VD);
+            // NOLINTNEXTLINE(misc-include-cleaner): false positive
+            std::erase_if(PMap, [VD](const auto& E) { return Variable(VD).isParent(E.first); });
             invalidateVar(VD, Reason);
         }
         // Remove all materialized temporaries that were extended by this
