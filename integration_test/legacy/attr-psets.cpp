@@ -323,7 +323,7 @@ void array() {
 void pointer_in_array() {
   int *p[4];
   int *k = p[1];
-  __lifetime_pset(k); // expected-warning {{pset(k) = (**p)}}
+  __lifetime_pset(k); // expected-warning {{pset(k) = ((global))}}
 }
 
 int global_var;

@@ -84,6 +84,7 @@ ${CMAKE_SOURCE_DIR}/lib/lifetime/Lifetime.cpp
 ${CMAKE_SOURCE_DIR}/lib/lifetime/LifetimeAttrHandling.cpp
 ${CMAKE_SOURCE_DIR}/lib/lifetime/LifetimePsetBuilder.cpp
 ${CMAKE_SOURCE_DIR}/lib/lifetime/LifetimeTypeCategory.cpp
+${CMAKE_SOURCE_DIR}/lib/lifetime/Debug.cpp
 ${CMAKE_SOURCE_DIR}/lib/lifetime/contract/CallVisitor.cpp
 ${CMAKE_SOURCE_DIR}/lib/lifetime/contract/Parser.cpp)
 set_target_properties(cppsafe_lib PROPERTIES OUTPUT_NAME "cppsafe")

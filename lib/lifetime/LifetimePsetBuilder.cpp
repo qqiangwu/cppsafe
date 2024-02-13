@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
+#include "cppsafe/lifetime/Debug.h"
 #include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
@@ -38,10 +39,8 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <cassert>
-#include <functional>
 #include <map>
 #include <optional>
-#include <string>
 #include <utility>
 
 namespace clang::lifetime {
@@ -1046,7 +1045,9 @@ PSet PSetsBuilder::derefPSet(const PSet& PS) const
     for (auto V : PS.vars()) {
         const unsigned Order = V.getOrder();
         if (Order > 0) {
-            if (Order > MaxOrderDepth) {
+            // HACK: vector<int*>::front()
+            const auto Ty = V.getType();
+            if (Order > MaxOrderDepth || (!Ty.isNull() && Ty->isPointerType())) {
                 RetPS.addGlobal();
             } else {
                 RetPS.insert(V.deref()); // pset(o') = { o'' }
@@ -1248,38 +1249,6 @@ void PSetsBuilder::updatePSetsFromCondition(
     }
 } // namespace lifetime
 
-static const FunctionDecl* getFunctionDecl(const Expr* E)
-{
-    if (const auto* Lambda = dyn_cast<LambdaExpr>(E)) {
-        const auto* CE = dyn_cast<CallExpr>(Lambda->getCompoundStmtBody()->body_back());
-        if (!CE) {
-            return nullptr;
-        }
-
-        return CE->getDirectCallee()->getCanonicalDecl();
-    }
-
-    const auto* FD = std::invoke([E]() -> const FunctionDecl* {
-        if (const auto* CE = dyn_cast<CallExpr>(E)) {
-            return CE->getDirectCallee();
-        }
-        if (const auto* Tmp = dyn_cast<CXXTemporaryObjectExpr>(E)) {
-            return Tmp->getConstructor();
-        }
-        if (const auto* R = dyn_cast<DeclRefExpr>(E)) {
-            return dyn_cast<FunctionDecl>(R->getDecl());
-        }
-
-        return nullptr;
-    });
-
-    if (FD) {
-        FD = FD->getCanonicalDecl();
-    }
-
-    return FD;
-}
-
 /// Checks if the statement S is a call to a debug function and dumps the
 /// corresponding part of the state.
 bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
@@ -1306,75 +1275,23 @@ bool PSetsBuilder::handleDebugFunctions(const CallExpr* CallE) const
     const auto Range = CallE->getSourceRange();
     switch (FuncNum) {
     case 1: // __lifetime_pset
-    case 2: { // __lifetime_pset_ref
-        assert(CallE->getNumArgs() == 1 && "__lifetime_pset takes one argument");
-        PSet Set = getPSet(CallE->getArg(0));
+        return debugPSet(*this, CallE, ASTCtxt, Reporter);
 
-        if (FuncNum == 1) {
-            if (!hasPSet(CallE->getArg(0))) {
-                return true; // Argument must be a Pointer or Owner
-            }
-            Set = getPSet(Set);
-        }
-        const StringRef SourceText
-            = Lexer::getSourceText(CharSourceRange::getTokenRange(CallE->getArg(0)->getSourceRange()),
-                ASTCtxt.getSourceManager(), ASTCtxt.getLangOpts());
-        Reporter.debugPset(Range, SourceText, Set.str());
-        return true;
-    }
+    case 2: // __lifetime_pset_ref
+        return debugPSetRef(*this, CallE, ASTCtxt, Reporter);
+
     case 3: { // __lifetime_type_category
         const auto* Args = Callee->getTemplateSpecializationArgs();
         auto QType = Args->get(0).getAsType();
-        auto Class = classifyTypeCategory(QType);
-        if (Class.isIndirection()) {
-            Reporter.debugTypeCategory(Range, Class.TC, Class.PointeeType.getAsString());
-        } else {
-            Reporter.debugTypeCategory(Range, Class.TC);
-        }
-        return true;
+        return debugTypeCategory(CallE, QType, Reporter);
     }
     case 4: { // __lifetime_type_category_arg
         auto QType = CallE->getArg(0)->getType();
-        auto Class = classifyTypeCategory(QType);
-        if (Class.isIndirection()) {
-            Reporter.debugTypeCategory(Range, Class.TC, Class.PointeeType.getAsString());
-        } else {
-            Reporter.debugTypeCategory(Range, Class.TC);
-        }
-        return true;
+        return debugTypeCategory(CallE, QType, Reporter);
     }
-    case 5: { // __lifetime_contracts
-        const Expr* E = CallE->getArg(0)->IgnoreImplicit();
-        if (const auto* UO = dyn_cast<UnaryOperator>(E)) {
-            E = UO->getSubExpr();
-        }
-        const auto* FD = getFunctionDecl(E);
-        if (FD == nullptr) {
-            return false;
-        }
+    case 5: // __lifetime_contracts
+        return debugContracts(CallE, ASTCtxt, CurrentBlock, IsConvertible, Reporter);
 
-        PSetsMap PreConditions;
-        getLifetimeContracts(PreConditions, FD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/true);
-
-        PSetsMap PostConditions;
-        getLifetimeContracts(PostConditions, FD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
-
-        auto PrintContract = [this, &Range](const auto& E, const std::string& Contract) {
-            std::string KeyText = Contract + "(";
-            KeyText += E.first.getName();
-            KeyText += ")";
-            const std::string PSetText = E.second.str();
-            Reporter.debugPset(Range, KeyText, PSetText);
-        };
-        for (const auto& E : PreConditions) {
-            PrintContract(E, "Pre");
-        }
-        for (const auto& E : PostConditions) {
-            PrintContract(E, "Post");
-        }
-
-        return true;
-    }
     case 6:
         debugPmap(Range);
         return true;
