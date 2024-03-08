@@ -1,4 +1,5 @@
 #include "cppsafe/lifetime/contract/Parser.h"
+
 #include "cppsafe/lifetime/LifetimeAttrData.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
 

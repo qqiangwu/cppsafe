@@ -1,4 +1,5 @@
 #include "cppsafe/lifetime/Debug.h"
+
 #include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"

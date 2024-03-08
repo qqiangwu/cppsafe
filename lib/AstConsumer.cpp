@@ -1,4 +1,5 @@
 #include "cppsafe/AstConsumer.h"
+
 #include "cppsafe/Options.h"
 #include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/contract/Annotation.h"

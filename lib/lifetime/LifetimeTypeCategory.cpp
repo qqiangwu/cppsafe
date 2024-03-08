@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
+
 #include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
 

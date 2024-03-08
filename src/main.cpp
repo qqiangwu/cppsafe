@@ -1,7 +1,6 @@
 #include "cppsafe/AstConsumer.h"
 #include "cppsafe/Options.h"
 
-#include <cctype>
 #include <clang/AST/ASTConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendAction.h>
@@ -20,6 +19,7 @@
 #include <llvm/Support/WithColor.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <functional>
 #include <memory>
