@@ -697,6 +697,8 @@ public:
         Vars = NewVars;
     }
 
+    template <class Fn> void eraseIf(const Fn&& F) { std::erase_if(Vars, F); }
+
     /// The pointer is dangling
     static PSet invalid(InvalidationReason Reason) { return invalid(std::vector<InvalidationReason> { Reason }); }
 

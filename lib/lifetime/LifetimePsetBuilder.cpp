@@ -365,6 +365,18 @@ public:
             // which in turn points to the pointee. For R-values,
             // the pset just refers to the pointee.
             if (hasPSet(E)) {
+                // vector<int*> vec;  // pset(vec) = {*this}
+                // auto* p = vec.front();
+                if (isPointer(E)) {
+                    auto P = getPSet(E->getSubExpr());
+                    P.eraseIf([](const Variable& V) {
+                        const auto Vt = V.getType();
+                        return Vt.isNull() || !Vt->isPointerType();
+                    });
+                    setPSet(E, derefPSet(P));
+                    return;
+                }
+
                 setPSet(E, derefPSet(getPSet(E->getSubExpr())));
             }
             return;

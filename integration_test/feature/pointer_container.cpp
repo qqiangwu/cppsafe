@@ -46,7 +46,7 @@ struct Test
     void test()
     {
         auto* p = o.get();
-        __lifetime_pset(p);  // expected-warning {{pset(p) = (**this)}}
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((unknown))}}
 
         auto& q = o.get();
         __lifetime_pset(q);  // expected-warning {{pset(q) = (*this)}}
