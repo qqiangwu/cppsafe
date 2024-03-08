@@ -5,3 +5,19 @@ ColumnLimit: 120
 InsertBraces: true
 InsertNewlineAtEOF: true
 NamespaceIndentation: None
+IncludeBlocks: Regroup
+IncludeCategories:
+  # c std
+  - Regex:           '<[[:alnum:]_]+\.h>'
+    Priority:        4
+  # cpp std
+  - Regex:           '<[[:alnum:]_]+>'
+    Priority:        5
+  # third party
+  - Regex:           '<.+>'
+    Priority:        3
+  - Regex:           '^"(clang)|(llvm)'
+    Priority:        3
+  # "" headers
+  - Regex:           '^".*'
+    Priority:        1

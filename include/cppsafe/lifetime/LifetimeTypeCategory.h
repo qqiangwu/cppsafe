@@ -11,6 +11,7 @@
 #define LLVM_CLANG_ANALYSIS_ANALYSES_LIFETIMETYPECATEGORY_H
 
 #include "cppsafe/lifetime/Lifetime.h"
+
 #include "clang/AST/Type.h"
 
 namespace clang::lifetime {
@@ -82,20 +83,11 @@ inline QualType getPointeeType(QualType QT) { return classifyTypeCategory(QT).Po
 
 bool isLifetimeConst(const FunctionDecl* FD, QualType Pointee, int ArgNum);
 
-inline bool isOwner(const Expr* E)
-{
-    return classifyTypeCategory(E->getType()).isOwner();
-}
+inline bool isOwner(const Expr* E) { return classifyTypeCategory(E->getType()).isOwner(); }
 
-inline bool isPointer(const Expr* E)
-{
-    return classifyTypeCategory(E->getType()).isPointer();
-}
+inline bool isPointer(const Expr* E) { return classifyTypeCategory(E->getType()).isPointer(); }
 
-inline bool isIndirection(const Expr* E)
-{
-    return classifyTypeCategory(E->getType()).isIndirection();
-}
+inline bool isIndirection(const Expr* E) { return classifyTypeCategory(E->getType()).isIndirection(); }
 
 inline bool hasPSet(const Expr* E)
 {

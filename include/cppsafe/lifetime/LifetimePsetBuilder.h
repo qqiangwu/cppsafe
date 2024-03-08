@@ -13,6 +13,7 @@
 #include "Lifetime.h"
 #include "LifetimePset.h"
 #include "cppsafe/util/type.h"
+
 #include <clang/Basic/SourceLocation.h>
 
 namespace clang {
