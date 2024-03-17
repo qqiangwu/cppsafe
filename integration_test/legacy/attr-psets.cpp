@@ -137,7 +137,7 @@ struct S {
   static int s;
   void f() {
     int *p = &m;        // pset becomes m, not *this
-    __lifetime_pset(p); // expected-warning {{pset(p) = (*this)}}
+    __lifetime_pset(p); // expected-warning {{pset(p) = ((*this).m)}}
     int *ps = &s;
     __lifetime_pset(ps); // expected-warning {{pset(ps) = ((global))}}
     int *ps2 = &this->s;
@@ -1347,7 +1347,7 @@ void f() {
   UnscannedEntry E;
   __lifetime_type_category<UnscannedEntry>(); // expected-warning {{Aggregate}}
   // We don't handle Aggregates yet
-  __lifetime_pset(E.V1); // expected-warning {{((global)}}
+  __lifetime_pset(E.V1); // expected-warning {{pset(E.V1) = (*E.V1)}}
 }
 
 struct InClassInitializer {
@@ -1695,19 +1695,18 @@ struct Node {
   SubRegion subregions_;
   Node *parent_;
   bool f() {
-    __lifetime_pset(subregions_);  // expected-warning {{pset(subregions_) = (*this)}}
+    __lifetime_pset(subregions_);  // expected-warning {{pset(subregions_) = (*(*this).subregions_)}}
 
     for (auto itr = subregions_.begin(); cond();) {
       __lifetime_pset(itr);  // expected-warning {{*this}}
 
       Node* up = itr->parent_;
-      __lifetime_pset(up); // expected-warning {{(*(*this).parent_)}}
+      __lifetime_pset(up);  // expected-warning {{pset(up) = ((global))}}
 
       do {
         up = up->subregions_.begin();
         up = up->parent_;
         __lifetime_pset(up); // expected-warning {{pset(up) = ((global))}}
-                             // expected-warning@-1 {{pset(up) = ((global))}}
       } while (cond());
     }
     return true;

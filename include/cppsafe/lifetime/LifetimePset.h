@@ -16,11 +16,13 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
 #include <clang/AST/DeclCXX.h>
+#include <llvm/ADT/STLFunctionalExtras.h>
 #include <llvm/ADT/StringExtras.h>
 #include <range/v3/algorithm/find_if_not.hpp>
 #include <range/v3/view/reverse.hpp>
 
 #include <map>
+#include <optional>
 #include <set>
 
 namespace clang::lifetime {
@@ -81,23 +83,43 @@ public:
     //   *(*a).b is NOT the subobject of *a
     bool isParent(const Variable& O) const
     {
-        auto isPrefixOf = [this](const llvm::SmallVectorImpl<const FieldDecl*>& OtherFDs) {
+        const auto IsPrefixOf = [this](const llvm::SmallVectorImpl<const FieldDecl*>& OtherFDs) {
             if (OtherFDs.size() < FDs.size()) {
                 return false;
             }
-            bool HasField = false;
+            bool HasPtrField = false;
             for (const auto* FD : OtherFDs) {
-                if (FD) {
-                    HasField = true;
+                if (FD && classifyTypeCategory(FD->getType()).isPointer()) {
+                    HasPtrField = true;
                 }
-                // Dereferencing a field, we are no longer in the same object.
-                if (HasField && !FD) {
+                // Dereferencing a pointer field, we are no longer in the same object.
+                if (HasPtrField && !FD) {
                     return false;
                 }
             }
             return FDs.end() == std::mismatch(FDs.begin(), FDs.end(), OtherFDs.begin()).first;
         };
-        return Var == O.Var && isPrefixOf(O.FDs);
+        return Var == O.Var && IsPrefixOf(O.FDs);
+    }
+
+    std::optional<const FieldDecl*> getField() const
+    {
+        if (!isField()) {
+            return std::nullopt;
+        }
+
+        return FDs.back();
+    }
+
+    std::optional<Variable> getParent() const
+    {
+        if (!isField()) {
+            return std::nullopt;
+        }
+
+        auto R = *this;
+        R.FDs.pop_back();
+        return R;
     }
 
     bool hasStaticLifetime() const
@@ -153,6 +175,12 @@ public:
     const VarDecl* asVarDecl() const { return Var.dyn_cast<const VarDecl*>(); }
 
     // Chain of field accesses starting from VD. Types must match.
+    void addFieldRefUnchecked(const FieldDecl* FD)
+    {
+        assert(FD);
+        FDs.push_back(FD);
+    }
+
     void addFieldRef(const FieldDecl* FD)
     {
         assert(FD);
@@ -571,7 +599,13 @@ public:
         }
 
         // If 'this' includes o'', then 'O' must include o'' or o'. (etc.)
-        for (const auto& V : Vars) {
+        for (auto V : Vars) {
+            if (V.isThisPointer()) {
+                // TODO: simplifiy symbol calculation for *this based symbols
+                V = Variable::thisPointer(V.asThis());
+                V.deref();
+            }
+
             auto I = O.Vars.find(V);
             if (I == O.Vars.end() || I->getOrder() > V.getOrder()) {
                 if (!Reporter.getOptions().LifetimePost && V.isThisPointer()) {
@@ -695,6 +729,17 @@ public:
             NewVars.insert(Var);
         }
         Vars = NewVars;
+    }
+
+    void transformVars(llvm::function_ref<Variable(Variable)> Fn)
+    {
+        std::set<Variable> NewVars;
+
+        for (const auto& Var : Vars) {
+            NewVars.insert(Fn(Var));
+        }
+
+        Vars = std::move(NewVars);
     }
 
     template <class Fn> void eraseIf(const Fn&& F) { std::erase_if(Vars, F); }

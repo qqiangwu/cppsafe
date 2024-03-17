@@ -57,7 +57,8 @@ bool VisitBlock(const FunctionDecl* FD, PSetsMap& PMap, std::optional<PSetsMap>&
 
 /// Get the initial PSets for function parameters.
 void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTContext& ASTCtxt, const CFGBlock* Block,
-    IsConvertibleTy isConvertible, LifetimeReporterBase& Reporter, bool Pre = true, bool IgnoreNull = false);
+    IsConvertibleTy isConvertible, LifetimeReporterBase& Reporter, bool Pre = true, bool IgnoreNull = false,
+    bool IgnoreFields = false);
 } // namespace lifetime
 } // namespace clang
 

@@ -659,13 +659,11 @@ public:
 
     void invalidateVar(const Variable& V, const InvalidationReason& Reason) override
     {
-        for (const auto& I : PMap) {
-            const PSet& PS = I.second;
+        for (const auto& [Var, PS] : PMap) {
             if (PS.containsInvalid()) {
                 continue; // Nothing to invalidate
             }
 
-            const auto& Var = I.first;
             if (PS.containsParent(V)) {
                 setPSet(PSet::singleton(Var), PSet::invalid(Reason), Reason.getRange());
             }
@@ -724,6 +722,8 @@ public:
             }
         }
     }
+
+    PSet getPSetOfField(const Variable& P) const;
 
     PSet getPSet(const Variable& P) const override;
 
@@ -979,8 +979,38 @@ public:
     DISALLOW_COPY_AND_MOVE(PSetsBuilder);
 
     void visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseBranchExitPMap);
-}; // namespace
+};
+
 } // namespace
+
+PSet PSetsBuilder::getPSetOfField(const Variable& P) const
+{
+    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+    const auto* FD = P.getField().value();
+    const auto TC = classifyTypeCategory(FD->getType());
+    if (TC.isPointer()) {
+        return PSet::globalVar();
+    }
+
+    auto V = P.getParent();
+    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+    auto PS = getPSet(V.value());
+    if (PS.isUnknown()) {
+        return PSet::singleton(P);
+    }
+
+    PS.transformVars([&TC, FD](Variable V) {
+        V.addFieldRefUnchecked(FD);
+
+        if (TC.isOwner()) {
+            V.deref();
+        }
+
+        return V;
+    });
+
+    return PS;
+}
 
 // Manages lifetime information for the CFG of a FunctionDecl
 PSet PSetsBuilder::getPSet(const Variable& P) const
@@ -1000,7 +1030,9 @@ PSet PSetsBuilder::getPSet(const Variable& P) const
     // Until proper aggregate support is implemented, this might be triggered
     // unintentionally.
     if (P.isField()) {
-        return PSet::globalVar(false);
+        auto PS = getPSetOfField(P);
+        PMap[P] = PS;
+        return PS;
     }
 
     // consider: ***v

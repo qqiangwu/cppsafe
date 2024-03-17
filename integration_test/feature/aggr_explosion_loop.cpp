@@ -16,7 +16,7 @@ void test(int n)
         Value v;
 
         __lifetime_pset(v);   // expected-warning {{pset(v) = (v)}}
-        __lifetime_pset(v.x); // expected-warning {{pset(v.x) = ((global))}}
+        __lifetime_pset(v.x); // expected-warning {{pset(v.x) = (v.x)}}
         v.x = Elem{};
         __lifetime_pset(v.x); // expected-warning {{pset(v.x) = (v.x)}}
     }
