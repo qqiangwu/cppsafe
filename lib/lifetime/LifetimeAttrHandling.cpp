@@ -524,14 +524,19 @@ static LifetimeContractAttr* getLifetimeContracts(
     return ContractAttr;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): refactor later
 void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTContext& ASTCtxt, const CFGBlock* Block,
-    IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter, bool Pre, bool IgnoreNull)
+    IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter, bool Pre, bool IgnoreNull, bool IgnoreFields)
 {
     auto* ContractAttr = getLifetimeContracts(FD, ASTCtxt, IsConvertible, Reporter);
 
     if (Pre) {
         for (const auto& Pair : ContractAttr->PrePSets) {
             const Variable V(Pair.first, FD);
+            if (IgnoreFields && V.isField() && V.isThisPointer()) {
+                continue;
+            }
+
             PSet PS(Pair.second, FD);
             if (const auto* PVD = dyn_cast_or_null<ParmVarDecl>(V.asVarDecl())) {
                 // HACK: __builtin_va_arg

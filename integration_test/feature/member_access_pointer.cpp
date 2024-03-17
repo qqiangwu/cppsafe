@@ -9,10 +9,13 @@ struct [[gsl::Pointer()]] Ptr
 
 template <class T> void __lifetime_pset(T&&);
 
+void __lifetime_pmap();
+
 void foo(Ptr p)
 {
-    __lifetime_pset(p);  // expected-warning {{(*p)}}
-    __lifetime_pset(p.o);  // expected-warning {{((global))}}
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (*p)}}
+    __lifetime_pset(p.o);  // expected-warning {{pset(p.o) = (*(*p).o)}}
+    __lifetime_pset(p.i);  // expected-warning {{pset(p.i) = ((*p).i)}}
     __lifetime_pset(p.p);  // expected-warning {{((global))}}
 }
 
@@ -22,8 +25,8 @@ struct Test
 
     void foo()
     {
-        __lifetime_pset(p);  // expected-warning {{(*this)}}
-        __lifetime_pset(p.o);  // expected-warning {{(*this)}}
+        __lifetime_pset(p);  // expected-warning {{pset(p) = (*(*this).p)}}
+        __lifetime_pset(p.o);  // expected-warning {{pset(p.o) = (*(*(*this).p).o)}}
         __lifetime_pset(p.p);  // expected-warning {{((global))}}
     }
 };
@@ -48,8 +51,8 @@ void foo(Owner2& o)
 {
     auto p = o.Get();
     __lifetime_pset(p);  // expected-warning {{(**o)}}
-    __lifetime_pset(p->o);  // expected-warning {{((global))}}
-    __lifetime_pset(p->i);  // expected-warning {{((global))}}
+    __lifetime_pset(p->o);  // expected-warning {{pset(p->o) = ((**o).o)}}
+    __lifetime_pset(p->i);  // expected-warning {{pset(p->i) = ((**o).i)}}
     __lifetime_pset(p->p);  // expected-warning {{((global))}}
 }
 
@@ -59,10 +62,13 @@ struct Test2
 
     void foo()
     {
+        __lifetime_pmap();
+        __lifetime_pset(o);  // expected-warning {{(*(*this).o)}}
+
         auto p = o.Get();
-        __lifetime_pset(p);  // expected-warning {{(*this)}}
-        __lifetime_pset(p->o);  // expected-warning {{(**this)}}
-        __lifetime_pset(p->i);  // expected-warning {{(**this)}}
+        __lifetime_pset(p);  // expected-warning {{pset(p) = (*(*this).o)}}
+        __lifetime_pset(p->o);  // expected-warning {{pset(p->o) = ((*(*this).o).o)}}
+        __lifetime_pset(p->i);  // expected-warning {{pset(p->i) = ((*(*this).o).i)}}
         __lifetime_pset(p->p);  // expected-warning {{((global))}}
     }
 };

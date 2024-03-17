@@ -19,9 +19,9 @@ struct CacheHolder {
         // expected-warning@-3 {{pset(Pre((*this).cache)) = (*this)}}
         // expected-warning@-4 {{pset(Post((return value))) = ((null), *this)}}
 
-        __lifetime_pset(cache); // expected-warning {{pset(cache) = (*this)}}
-        __lifetime_pset(*cache); // expected-warning {{pset(*cache) = (**this)}}
-        __lifetime_pset(&*cache); // expected-warning {{pset(&*cache) = (*this)}}
+        __lifetime_pset(cache); // expected-warning {{pset(cache) = (*(*this).cache)}}
+        __lifetime_pset(*cache); // expected-warning {{pset(*cache) = ((unknown))}}
+        __lifetime_pset(&*cache); // expected-warning {{pset(&*cache) = (*(*this).cache)}}
         return &*cache;
     }
 };
