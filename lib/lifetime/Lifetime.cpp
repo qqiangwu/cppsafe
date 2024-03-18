@@ -373,6 +373,14 @@ void LifetimeContext::traverseBlocks()
     // ExitPSets are the function parameters.
     getLifetimeContracts(BC.ExitPMap, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter, true,
         Reporter.getOptions().NoLifetimeCallNull, true);
+    for (const auto* Parm : FuncDecl->parameters()) {
+        if (classifyTypeCategory(Parm->getType()).isIndirection()) {
+            continue;
+        }
+
+        const Variable V(Parm);
+        BC.ExitPMap[V] = PSet::singleton(V);
+    }
     if (const auto* Method = dyn_cast<CXXMethodDecl>(FuncDecl)) {
         createEntryPsetsForMembers(Method, BC.ExitPMap);
     }
