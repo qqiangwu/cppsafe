@@ -1175,7 +1175,7 @@ bool PSetsBuilder::checkPSetValidity(const PSet& PS, SourceRange Range) const
         return false;
     }
 
-    if (PS.containsNull()) {
+    if (Reporter.getOptions().LifetimeNull && PS.containsNull()) {
         if (PS.shouldBeFilteredBasedOnNotes(Reporter) && !PS.isNull()) {
             return false;
         }

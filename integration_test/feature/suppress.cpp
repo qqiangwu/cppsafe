@@ -1,3 +1,4 @@
+// ARGS: --Wlifetime-null
 [[gsl::suppress("lifetime")]]
 void foo1(int* p)
 {

@@ -1,4 +1,4 @@
-// ARG: --Wno-lifetime-call-null
+// ARGS: --Wlifetime-null
 
 int* get();
 int* get(int*);

@@ -372,7 +372,7 @@ void LifetimeContext::traverseBlocks()
     auto& BC = getBlockContext(Start);
     // ExitPSets are the function parameters.
     getLifetimeContracts(BC.ExitPMap, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter, true,
-        Reporter.getOptions().NoLifetimeCallNull, true);
+        !Reporter.getOptions().LifetimeCallNull, true);
     for (const auto* Parm : FuncDecl->parameters()) {
         if (classifyTypeCategory(Parm->getType()).isIndirection()) {
             continue;

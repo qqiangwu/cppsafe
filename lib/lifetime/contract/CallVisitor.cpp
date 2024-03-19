@@ -124,7 +124,7 @@ void CallVisitor::enforcePreAndPostConditions(
 
     checkPreconditions(CallE, PreConditions);
 
-    if (Reporter.getOptions().NoLifetimeNull) {
+    if (!Reporter.getOptions().LifetimeCallNull) {
         for (auto& [_, P] : PreConditions) {
             P.removeNull();
         }
@@ -149,7 +149,7 @@ void CallVisitor::enforcePreAndPostConditions(
         }
     }
 
-    if (Reporter.getOptions().NoLifetimeNull) {
+    if (!Reporter.getOptions().LifetimeCallNull) {
         for (auto& [V, P] : PostConditions) {
             P.removeNull();
         }

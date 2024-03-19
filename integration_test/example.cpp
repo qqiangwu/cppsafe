@@ -1,3 +1,4 @@
+// ARGS: --Wlifetime-null
 // This is intedend to contain all examples that are linked from the paper.
 
 #include <iostream>

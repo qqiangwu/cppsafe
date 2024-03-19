@@ -36,8 +36,8 @@ static cl::desc desc(StringRef Description) { return { Description.ltrim() }; }
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static cl::OptionCategory CppSafeCategory("cppsafe options");
 
-static const cl::opt<bool> WarnNoLifetimeNull("Wno-lifetime-null",
-    desc("Disable flow-sensitive warnings about nullness of Pointers"), cl::init(false), cl::cat(CppSafeCategory));
+static const cl::opt<bool> WarnLifetimeNull("Wlifetime-null",
+    desc("Enable flow-sensitive warnings about nullness of Pointers"), cl::init(false), cl::cat(CppSafeCategory));
 
 static const cl::opt<bool> WarnNoLifetimeCallNull("Wno-lifetime-call-null",
     desc("Disable flow-sensitive warnings about nullness of Pointers for calls"), cl::init(false),
@@ -118,8 +118,8 @@ public:
     std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance&, llvm::StringRef) override
     {
         const CppsafeOptions Options {
-            .NoLifetimeNull = WarnNoLifetimeNull,
-            .NoLifetimeCallNull = WarnNoLifetimeNull || WarnNoLifetimeNull,
+            .LifetimeNull = WarnLifetimeNull,
+            .LifetimeCallNull = WarnLifetimeNull && !WarnNoLifetimeCallNull,
             .LifetimePost = WarnLifetimePost,
             .LifetimeDisabled = WarnLifetimeDisabled,
             .LifetimeGlobal = WarnLifetimeGlobal,
