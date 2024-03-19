@@ -3,8 +3,8 @@
 namespace cppsafe {
 
 struct CppsafeOptions {
-    bool NoLifetimeNull = false;
-    bool NoLifetimeCallNull = false;
+    bool LifetimeNull = false;
+    bool LifetimeCallNull = false;
     bool LifetimePost = false;
     bool LifetimeDisabled = false;
     bool LifetimeGlobal = false;

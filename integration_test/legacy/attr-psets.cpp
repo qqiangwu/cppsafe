@@ -1,4 +1,4 @@
-// ARGS: --Wlifetime-disabled --Wlifetime-global --Wlifetime-output
+// ARGS: --Wlifetime-disabled --Wlifetime-global --Wlifetime-output --Wlifetime-null
 
 template <typename T>
 bool __lifetime_pset(const T &) { return true; }

@@ -1,3 +1,5 @@
+// ARGS: --Wlifetime-null
+
 template <typename T>
 bool __lifetime_pset(const T &) { return true; }
 

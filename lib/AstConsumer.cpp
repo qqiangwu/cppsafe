@@ -156,7 +156,7 @@ class Reporter : public LifetimeReporterBase {
 
     bool isNullSuppressed(WarnType WT) const
     {
-        if (!Options.NoLifetimeNull) {
+        if (Options.LifetimeNull) {
             return false;
         }
 

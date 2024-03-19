@@ -1,3 +1,5 @@
+// ARGS: --Wlifetime-null
+
 #include <cassert>
 
 template <class T> void __lifetime_pset(T&&);

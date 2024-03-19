@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsyntax-only -verify -Wlifetime -Wno-dangling %s
+// ARGS: --Wlifetime-null
 namespace std {
 using size_t = decltype(sizeof(int));
 

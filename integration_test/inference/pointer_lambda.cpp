@@ -1,3 +1,4 @@
+// ARGS: --Wlifetime-null
 template <class T>
 void __lifetime_pset(T&&) {}
 

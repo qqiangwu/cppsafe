@@ -1,5 +1,3 @@
-// ARGS: --Wno-lifetime-null
-
 template <class T> void __lifetime_pset(T&&);
 
 namespace std {
