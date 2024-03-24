@@ -47,8 +47,12 @@ enum LifetimeDiag {
     warn_null,
     warn_wrong_pset,
     warn_non_static_throw,
+
+    // -Wlifetime-disabled
     warn_lifetime_pointer_arithmetic,
     warn_lifetime_unsafe_cast,
+    warn_lifetime_naked_new_delete,
+
     warn_unsupported_expression,
 
     warn_lifetime_category,
@@ -196,6 +200,8 @@ public:
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "pointer arithmetic disables lifetime analysis");
         WarningIds[LifetimeDiag::warn_lifetime_unsafe_cast]
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "unsafe cast disables lifetime analysis");
+        WarningIds[LifetimeDiag::warn_lifetime_naked_new_delete]
+            = E.getCustomDiagID(DiagnosticsEngine::Warning, "naked new-deletes disables lifetime analysis");
         WarningIds[LifetimeDiag::warn_unsupported_expression]
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "this pre/postcondition is not supported");
         WarningIds[LifetimeDiag::warn_lifetime_category]
@@ -336,6 +342,23 @@ public:
 
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_lifetime_unsafe_cast]);
+        }
+    }
+
+    void warnNakedNewDelete(SourceRange Range) final
+    {
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
+        if (!getOptions().LifetimeDisabled) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
+        if (enableIfNew(Range)) {
+            S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_lifetime_naked_new_delete]);
         }
     }
 
