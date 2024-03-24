@@ -162,7 +162,25 @@ public:
         }
     }
 
-    void VisitCXXNewExpr(const CXXNewExpr* E) { setPSet(E, PSet::globalVar(false)); }
+    void VisitCXXNewExpr(const CXXNewExpr* E)
+    {
+        Reporter.warnNakedNewDelete(E->getSourceRange());
+        setPSet(E, PSet::globalVar(false));
+    }
+
+    void VisitCXXDeleteExpr(const CXXDeleteExpr* DE)
+    {
+        if (hasPSet(DE->getArgument())) {
+            const PSet PS = getPSet(DE->getArgument());
+            for (const auto& Var : PS.vars()) {
+                // TODO: diagnose if we are deleting the buffer of on owner?
+                invalidateVar(Var, InvalidationReason::Deleted(DE->getSourceRange(), CurrentBlock));
+            }
+
+            setPSet(getPSet(DE->getArgument()->IgnoreImplicit()),
+                PSet::invalid(InvalidationReason::Deleted(DE->getSourceRange(), CurrentBlock)), DE->getSourceRange());
+        }
+    }
 
     void VisitAddrLabelExpr(const AddrLabelExpr* E) { setPSet(E, PSet::globalVar(false)); }
 
@@ -602,17 +620,6 @@ public:
     {
         // TODO: not yet suppported.
         setPSet(E, {});
-    }
-
-    void VisitCXXDeleteExpr(const CXXDeleteExpr* DE)
-    {
-        if (hasPSet(DE->getArgument())) {
-            const PSet PS = getPSet(DE->getArgument());
-            for (const auto& Var : PS.vars()) {
-                // TODO: diagnose if we are deleting the buffer of on owner?
-                invalidateVar(Var, InvalidationReason::Deleted(DE->getSourceRange(), CurrentBlock));
-            }
-        }
     }
 
     void VisitCXXThrowExpr(const CXXThrowExpr* TE)
