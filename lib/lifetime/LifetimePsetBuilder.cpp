@@ -261,8 +261,6 @@ public:
 
         if (!E->getBase()->IgnoreParenImpCasts()->getType()->isArrayType()) {
             Reporter.warnPointerArithmetic(E->getSourceRange());
-            setPSet(E, {});
-            return;
         }
 
         setPSet(E, getPSet(E->getBase()));
@@ -490,7 +488,6 @@ public:
             // Workaround: detecting compiler generated AST node.
             if (isPointer(UO) && UO->getBeginLoc() != UO->getEndLoc()) {
                 Reporter.warnPointerArithmetic(UO->getOperatorLoc());
-                setPSet(getPSet(UO->getSubExpr()), {}, UO->getSourceRange());
             }
         }
 
