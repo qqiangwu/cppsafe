@@ -547,3 +547,17 @@ void foo(std::string_view sv)
         (void)c;
     }
 }
+
+void cpp_core_guidelines_example()
+{
+    int* p = new int[700];
+    int* q = &p[7];
+    delete[] p;
+
+    vector<int> v(700);
+    int* q2 = &v[7];
+    v.resize(900);  // expected-note {{modified here}}
+
+    *q;
+    *q2;  // expected-warning {{dereferencing a dangling pointer}}
+}
