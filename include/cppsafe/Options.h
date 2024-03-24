@@ -9,6 +9,7 @@ struct CppsafeOptions {
     bool LifetimeDisabled = false;
     bool LifetimeGlobal = false;
     bool LifetimeOutput = false;
+    bool LifetimeContainerMove = false;
 };
 
 }

@@ -72,6 +72,8 @@ TypeClassification classifyTypeCategory(const Type* T);
 
 inline TypeClassification classifyTypeCategory(QualType QT) { return classifyTypeCategory(QT.getTypePtr()); }
 
+bool isIteratorOrContainer(QualType QT);
+
 bool isNullableType(QualType QT);
 
 // For primitive types like pointers, references we return the pointee.

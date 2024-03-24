@@ -26,6 +26,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
@@ -380,6 +381,37 @@ TypeClassification classifyTypeCategory(const Type* T)
     llvm::errs() << "classifyTypeCategory(" << QualType(T, 0).getAsString() << ") = " << TC.str() << "\n";
 #endif
     return TC;
+}
+
+bool isIteratorOrContainer(QualType QT)
+{
+    if (QT.isNull()) {
+        return false;
+    }
+
+    static std::map<const Type*, bool> Cache;
+    const auto* RawT = QT.getTypePtr();
+    const auto* T = RawT->getUnqualifiedDesugaredType();
+    auto It = Cache.find(T);
+    if (It != Cache.end()) {
+        return It->second;
+    }
+
+    const auto Ret = std::invoke([&] {
+        if (QT.getAsString().ends_with("iterator")) {
+            return true;
+        }
+        if (const auto* R = T->getAsCXXRecordDecl()) {
+            if (satisfiesContainerRequirements(R)) {
+                return true;
+            }
+        }
+
+        return false;
+    });
+
+    Cache.emplace(T, Ret);
+    return Ret;
 }
 
 // TODO: check gsl namespace?

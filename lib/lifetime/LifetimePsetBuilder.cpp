@@ -657,6 +657,13 @@ public:
             }
 
             if (PS.containsParent(V)) {
+                // when move var with pset {*container}, only invalidate the var itself,
+                // containers and iterators are not invalidated
+                if (!Reporter.getOptions().LifetimeContainerMove) {
+                    if (V.isDeref() && isIteratorOrContainer(Var.getType())) {
+                        continue;
+                    }
+                }
                 setPSet(PSet::singleton(Var), PSet::invalid(Reason), Reason.getRange());
             }
         }

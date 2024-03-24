@@ -1,5 +1,3 @@
-// ARGS: -Wlifetime-container-move
-
 namespace std {
 
 template <class T>
@@ -25,7 +23,7 @@ __remove_reference_t(T)&& move(T&& t);
 
 }
 
-struct Dummy {};
+struct Dummy { void foo(); };
 
 template <class T>
 void __lifetime_pset(T&&);
@@ -36,16 +34,20 @@ void test_loop()
     __lifetime_pset(vec);  // expected-warning {{pset(vec) = (*vec)}}
 
     for (auto& x: vec) {
-        // expected-warning@-1 {{dereferencing a possibly dangling pointer}}
-        // expected-warning@+1 {{dereferencing a possibly dangling pointer}}
         auto y = std::move(x);
-        // expected-note@-1 {{moved here}}
-        // expected-note@-2 {{moved here}}
     }
 
-    __lifetime_pset(vec);
-    // expected-warning@-1 {{pset(vec) = (*vec)}}
-    // expected-warning@-2 {{pset(vec) = ((invalid), *vec)}}
+    __lifetime_pset(vec);  // expected-warning {{pset(vec) = (*vec)}}
+}
+
+void test_loop_back()
+{
+    std::vector<Dummy> vec;
+
+    for (auto& x: vec) {
+        auto y = std::move(x);  // expected-note {{moved here}}
+        x.foo();  // expected-warning {{dereferencing a dangling pointer}}
+    }
 }
 
 void test_iterator()
@@ -54,8 +56,6 @@ void test_iterator()
 
     for (auto it = vec.begin(), end = vec.end(); it != end; ++it) {
         auto y = std::move(*it);
-        // expected-warning@-1 {{dereferencing a possibly dangling pointer}}
-        // expected-note@-2 {{moved here}}
     }
 }
 
@@ -65,8 +65,6 @@ void test_index()
 
     for (int i = 0; i < 10; ++i) {
         auto y = std::move(vec[i]);
-        // expected-warning@-1 {{use a moved-from object}}
-        // expected-note@-2 {{moved here}}
     }
 }
 
@@ -75,7 +73,6 @@ void test_back()
     std::vector<Dummy> vec;
 
     auto x = std::move(vec.back());
-    // expected-note@-1 {{moved here}}
 
-    vec.pop_back();  // expected-warning {{use a moved-from object}}
+    vec.pop_back();
 }
