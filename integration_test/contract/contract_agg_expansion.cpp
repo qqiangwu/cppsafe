@@ -156,6 +156,10 @@ void foo(X& x, int*& p)
 
 struct [[gsl::Owner(int)]] IntOwner {};
 
+struct [[gsl::Pointer(const int)]] IntPtr {
+    IntPtr(const IntOwner&);
+};
+
 struct OwnerAgg
 {
     IntOwner o;
@@ -181,6 +185,17 @@ struct OwnerThis
     const IntOwner& get3();
     const IntOwner& get4() const;
 };
+
+struct ValueAggr {
+    virtual ~ValueAggr();
+
+    IntOwner o;
+};
+
+IntPtr getConstOwner(const ValueAggr* v)
+{
+    return v->o;
+}
 
 void test_member_owner()
 {
@@ -233,4 +248,10 @@ void test_member_owner()
     // expected-warning@-2 {{pset(Pre(*this)) = (**this)}}
     // expected-warning@-3 {{pset(Pre((*this).o)) = (*this)}}
     // expected-warning@-4 {{pset(Post((return value))) = (*this)}}
+
+    __lifetime_contracts(&getConstOwner);
+    // expected-warning@-1 {{pset(Pre(v)) = ((null), *v)}}
+    // expected-warning@-2 {{pset(Pre(*v)) = (**v)}}
+    // expected-warning@-3 {{pset(Pre((*v).o)) = ((null), *v)}}
+    // expected-warning@-4 {{pset(Post((return value))) = (*v)}}
 }
