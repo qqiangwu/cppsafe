@@ -106,7 +106,7 @@ private:
 
             const QualType PointeeType = getPointeeType(ParamType);
             const ContractPSet ParamDerefPSet { { ContractVariable { PVD, 2 } }, isNullableType(PointeeType) };
-            switch (classifyTypeCategory(PointeeType)) {
+            switch (classifyTypeCategory(PointeeType).TC) {
             case TypeCategory::Owner: {
                 ContractAttr->PrePSets.emplace(ParamDerefLoc, ParamDerefPSet);
                 if (!ParamType->isRValueReferenceType()) {
@@ -150,11 +150,12 @@ private:
                 break;
 
             case TypeCategory::Aggregate:
-                expandParameter(ParamDerefLoc, PointeeType, PointeeType, ContractAttr->PrePSets.at(ParamLoc),
-                    ContractAttr->PrePSets, Locations);
-                [[fallthrough]];
+            case TypeCategory::Value:
+                if (PointeeType->isRecordType()) {
+                    expandParameter(ParamDerefLoc, PointeeType, PointeeType, ContractAttr->PrePSets.at(ParamLoc),
+                        ContractAttr->PrePSets, Locations);
+                }
 
-            default:
                 if (!ParamType->isRValueReferenceType()) {
                     addParamSet(Locations.Input, ParamLoc);
                 }
