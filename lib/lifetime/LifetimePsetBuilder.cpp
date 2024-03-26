@@ -855,7 +855,11 @@ public:
             setPSet(PSet::singleton(VD), PSet::singleton(VD), Range);
 
             const auto* IL = dyn_cast<InitListExpr>(Initializer);
+            if (!IL) {
+                break;
+            }
 
+            // set fields of a struct when init by {}
             for (const auto* FD : VD->getType()->getAsCXXRecordDecl()->fields()) {
                 if (!classifyTypeCategory(FD->getType()).isPointer()) {
                     continue;
