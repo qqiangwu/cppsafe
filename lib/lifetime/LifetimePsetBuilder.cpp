@@ -1091,7 +1091,8 @@ PSet PSetsBuilder::derefPSet(const PSet& PS) const
         if (Order > 0) {
             // HACK: vector<int*>::front()
             const auto Ty = V.getType();
-            if (Order > MaxOrderDepth || (!Ty.isNull() && Ty->isPointerType())) {
+
+            if (Order > MaxOrderDepth || (!Ty.isNull() && classifyTypeCategory(Ty).isPointer())) {
                 RetPS.addGlobal();
             } else {
                 RetPS.insert(V.deref()); // pset(o') = { o'' }

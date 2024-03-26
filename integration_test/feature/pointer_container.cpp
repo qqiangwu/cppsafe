@@ -12,6 +12,11 @@ struct [[gsl::Owner(T)]] Owner
     T& get();
 };
 
+template <class T>
+struct [[gsl::Pointer(T)]] Ptr
+{
+};
+
 void test_ref(int n)
 {
     auto& c = n;
@@ -42,10 +47,20 @@ void test()
 struct Test
 {
     Owner<int*> o;
+    Owner<Ptr<int>> o2;
 
     void test()
     {
         auto* p = o.get();
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((global))}}
+
+        auto& q = o.get();
+        __lifetime_pset(q);  // expected-warning {{pset(q) = (*(*this).o)}}
+    }
+
+    void test2()
+    {
+        auto p = o.get();
         __lifetime_pset(p);  // expected-warning {{pset(p) = ((global))}}
 
         auto& q = o.get();
