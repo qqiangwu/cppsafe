@@ -42,6 +42,20 @@ void test()
 
     auto* d = c;
     __lifetime_pset(d);  // expected-warning {{pset(d) = ((global))}}
+
+    __lifetime_pset(o2.get());  // expected-warning {{pset(o2.get()) = ((global))}}
+}
+
+void test_void_ptr()
+{
+    Owner<int> o;
+    __lifetime_pset(o.get());  // expected-warning {{pset(o.get()) = (*o)}}
+
+    Owner<Owner<int>> o2;
+    __lifetime_pset(o2.get());  // expected-warning {{pset(o2.get()) = (**o2)}}
+
+    Owner<void*> o3;
+    __lifetime_pset(o3.get());  // expected-warning {{pset(o3.get()) = ((global))}}
 }
 
 struct Test
@@ -65,5 +79,7 @@ struct Test
 
         auto& q = o.get();
         __lifetime_pset(q);  // expected-warning {{pset(q) = (*(*this).o)}}
+
+        __lifetime_pset(o.get());  // expected-warning {{pset(o.get()) = ((global))}}
     }
 };

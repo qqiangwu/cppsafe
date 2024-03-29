@@ -7,6 +7,9 @@ public:
     void reset();
 };
 
+template <class T>
+__remove_reference_t(T)&& move(T&& t);
+
 }
 
 void foo(std::unique_ptr<int>* p)
@@ -39,11 +42,14 @@ void coo(std::unique_ptr<int> p)
 
 struct Value
 {
+    ~Value();
+
     void reset();
 
     void test()
     {
-        __lifetime_pset(*this);  // expected-warning {{pset(*this) = ((unknown))}}
+        __lifetime_pset(*this);  // expected-warning {{pset(*this) = (*this)}}
+        auto m = std::move(this);
         reset();
         __lifetime_pset(*this);  // expected-warning {{pset(*this) = (*this)}}
     }

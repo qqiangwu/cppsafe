@@ -51,7 +51,7 @@ void foo(Owner2& o)
 {
     auto p = o.Get();
     __lifetime_pset(p);  // expected-warning {{(**o)}}
-    __lifetime_pset(p->o);  // expected-warning {{pset(p->o) = ((**o).o)}}
+    __lifetime_pset(p->o);  // expected-warning {{pset(p->o) = (*(**o).o)}}
     __lifetime_pset(p->i);  // expected-warning {{pset(p->i) = ((**o).i)}}
     __lifetime_pset(p->p);  // expected-warning {{((global))}}
 }
@@ -62,12 +62,11 @@ struct Test2
 
     void foo()
     {
-        __lifetime_pmap();
         __lifetime_pset(o);  // expected-warning {{(*(*this).o)}}
 
         auto p = o.Get();
         __lifetime_pset(p);  // expected-warning {{pset(p) = (*(*this).o)}}
-        __lifetime_pset(p->o);  // expected-warning {{pset(p->o) = ((*(*this).o).o)}}
+        __lifetime_pset(p->o);  // expected-warning {{pset(p->o) = (*(*(*this).o).o)}}
         __lifetime_pset(p->i);  // expected-warning {{pset(p->i) = ((*(*this).o).i)}}
         __lifetime_pset(p->p);  // expected-warning {{((global))}}
     }
