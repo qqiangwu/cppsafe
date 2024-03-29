@@ -132,6 +132,9 @@ void f4(std::function<void()> f, span<int> s);
 ## Options
 By default, cppsafe aims to provide lowest false-positive, lots of checks are not performed. You can use the following options to disable or enable more checks.
 
+### `--Wlifetime-move`
+To minimize false positives, cppsafe will not check use after move by default. You can use `--Wlifetime-move` to enable it.
+
 ### `--Wlifetime-null`/`--Wno-lifetime-call-null`
 To minimize false positives, cppsafe will not check nullness of pointers by default. But if you systematically use gsl::not_null, try it via `--Wlifetime-null`/`--Wno-lifetime-call-null`
 

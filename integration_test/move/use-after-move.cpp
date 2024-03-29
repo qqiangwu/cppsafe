@@ -1,3 +1,5 @@
+// ARGS: -Wlifetime-move
+
 #include <vector>
 
 struct Dummy {

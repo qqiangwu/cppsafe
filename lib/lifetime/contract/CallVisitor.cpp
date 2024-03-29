@@ -318,7 +318,7 @@ void CallVisitor::checkPreconditions(const Expr* CallE, PSetsMap& PreConditions)
             }
 
             // if x is mentioned in PVD, and is not invalid, verify not moved
-            checkUseAfterFree(PreConditions, PVD, Arg);
+            checkUseAfterMove(PreConditions, PVD, Arg);
 
             if (PreConditions.contains(PVD)) {
                 if (!ArgPS.checkSubstitutableFor(PreConditions[PVD], Arg->getSourceRange(), Reporter)) {
@@ -338,7 +338,7 @@ void CallVisitor::checkPreconditions(const Expr* CallE, PSetsMap& PreConditions)
             // we will always verify pset(*this) is valid
             PSet ArgPS = Builder.getPSet(ObjExpr);
             if (PreConditions.contains(V)) {
-                if (!checkUseAfterFree(RD->getTypeForDecl(), Builder.derefPSet(ArgPS), ObjExpr->getSourceRange())) {
+                if (!checkUseAfterMove(RD->getTypeForDecl(), Builder.derefPSet(ArgPS), ObjExpr->getSourceRange())) {
                     Builder.setPSet(ObjExpr, PSet()); // Suppress further warnings.
                 }
 
@@ -454,7 +454,7 @@ void CallVisitor::invalidateVarOnNoConstUse(const Expr* Arg, const TypeClassific
     }
 }
 
-void CallVisitor::checkUseAfterFree(const PSetsMap& PreConditions, const ParmVarDecl* PVD, const Expr* Arg)
+void CallVisitor::checkUseAfterMove(const PSetsMap& PreConditions, const ParmVarDecl* PVD, const Expr* Arg)
 {
     // PVD: T*/T&/T&&/T*&/T*&&
     auto Ty = PVD->getType();
@@ -464,7 +464,7 @@ void CallVisitor::checkUseAfterFree(const PSetsMap& PreConditions, const ParmVar
     auto It = PreConditions.find(V);
     while (
         It != PreConditions.end() && !It->second.containsInvalid() && (Ty->isPointerType() || Ty->isReferenceType())) {
-        if (!checkUseAfterFree(Ty->getPointeeType().getTypePtr(), Builder.derefPSet(P), Arg->getSourceRange())) {
+        if (!checkUseAfterMove(Ty->getPointeeType().getTypePtr(), Builder.derefPSet(P), Arg->getSourceRange())) {
             Builder.setPSet(Arg, PSet()); // Suppress further warnings.
             return;
         }
@@ -475,8 +475,12 @@ void CallVisitor::checkUseAfterFree(const PSetsMap& PreConditions, const ParmVar
     }
 }
 
-bool CallVisitor::checkUseAfterFree(const Type* Ty, const PSet& P, SourceRange Range)
+bool CallVisitor::checkUseAfterMove(const Type* Ty, const PSet& P, SourceRange Range)
 {
+    if (!Reporter.getOptions().LifetimeMove) {
+        return true;
+    }
+
     const auto TC = classifyTypeCategory(Ty);
     if (TC.isPointer()) {
         return true;
