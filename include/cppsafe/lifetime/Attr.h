@@ -5,7 +5,7 @@
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Attr.h>
 
-namespace clang {
+namespace clang::lifetime {
 
 class LifetimeContractAttr {
 public:
