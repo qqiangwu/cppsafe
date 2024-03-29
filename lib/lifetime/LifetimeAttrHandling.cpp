@@ -307,44 +307,6 @@ private:
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void fillPostConditions(LifetimeContractAttr* ContractAttr, ParamDerivedLocations& Locations) const
     {
-        // p2.5.5
-        // Compute default postconditions.
-        auto ComputeOutput = [&](QualType OutputType) {
-            ContractPSet Ret;
-            for (const ContractVariable& CV : Locations.Input) {
-                if (canAssign(getLocationType(CV), OutputType)) {
-                    Ret.merge(ContractAttr->PrePSets.at(CV));
-                }
-
-                if (CV.isMemberExpansion()) {
-                    if (canAssign(getMemberLocationType(CV), OutputType)) {
-                        Ret.merge(ContractAttr->PrePSets.at(CV));
-                    }
-                }
-            }
-            if (Ret.isEmpty()) {
-                for (const ContractVariable& CV : Locations.InputWeak) {
-                    if (canAssign(getLocationType(CV), OutputType)) {
-                        Ret.merge(ContractAttr->PrePSets.at(CV));
-                    }
-
-                    if (CV.isMemberExpansion()) {
-                        if (canAssign(getMemberLocationType(CV), OutputType)) {
-                            Ret.merge(ContractAttr->PrePSets.at(CV));
-                        }
-                    }
-                }
-            }
-            if (Ret.isEmpty()) {
-                // globals are never null unless annotated manually
-                Ret.ContainsGlobal = true;
-            } else {
-                // For not_null types are never null regardless of type matching.
-                Ret.ContainsNull = isNullableType(OutputType);
-            }
-            return Ret;
-        };
-
         const auto RetTC = classifyTypeCategory(FD->getReturnType());
         if (RetTC.isPointer()) {
             Locations.Output.push_back(ContractVariable::returnVal());
@@ -355,7 +317,7 @@ private:
         }
 
         for (const ContractVariable& CV : Locations.Output) {
-            ContractAttr->PostPSets[CV] = ComputeOutput(getLocationType(CV));
+            ContractAttr->PostPSets[CV] = computeOutput(ContractAttr, Locations, getLocationType(CV));
         }
 
         // Process user defined postconditions.
@@ -363,6 +325,59 @@ private:
         if (Range.isValid()) {
             Reporter.warnUnsupportedExpr(Range);
         }
+    }
+
+    // p2.5.5
+    // Compute default postconditions.
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
+    ContractPSet computeOutput(
+        LifetimeContractAttr* ContractAttr, ParamDerivedLocations& Locations, QualType OutputType) const
+    {
+        ContractPSet Ret;
+        for (const ContractVariable& CV : Locations.Input) {
+            if (!CV.isMemberExpansion()) {
+                if (canAssign(getLocationType(CV), OutputType)) {
+                    Ret.merge(ContractAttr->PrePSets.at(CV));
+                }
+                continue;
+            }
+            if (!Ret.isEmpty()) {
+                continue;
+            }
+
+            // consider int* foo(Aggr* aggr) expansion:
+            //  int* foo(Owner* aggr.owner)
+            //  int* foo(int* aggr.val)
+            //  Owner* foo(Owner* aggr.owner)
+            if (canAssign(getLocationType(CV), OutputType) || canAssign(getMemberLocationType(CV), OutputType)) {
+                Ret.merge(ContractAttr->PrePSets.at(CV));
+            }
+        }
+        if (Ret.isEmpty()) {
+            for (const ContractVariable& CV : Locations.InputWeak) {
+                if (!CV.isMemberExpansion()) {
+                    if (canAssign(getLocationType(CV), OutputType)) {
+                        Ret.merge(ContractAttr->PrePSets.at(CV));
+                    }
+                    continue;
+                }
+                if (!Ret.isEmpty()) {
+                    continue;
+                }
+
+                if (canAssign(getLocationType(CV), OutputType) || canAssign(getMemberLocationType(CV), OutputType)) {
+                    Ret.merge(ContractAttr->PrePSets.at(CV));
+                }
+            }
+        }
+        if (Ret.isEmpty()) {
+            // globals are never null unless annotated manually
+            Ret.ContainsGlobal = true;
+        } else {
+            // For not_null types are never null regardless of type matching.
+            Ret.ContainsNull = isNullableType(OutputType);
+        }
+        return Ret;
     }
 
     static bool isForwardingReference(const FunctionDecl* FD, const ParmVarDecl* PVD)
