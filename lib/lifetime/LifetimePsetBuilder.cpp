@@ -492,11 +492,7 @@ public:
         }
 
         if (hasPSet(UO)) {
-            PSet PS = getPSet(UO->getSubExpr());
-            if (!UO->isLValue() && isa<MemberExpr>(UO->getSubExpr())) {
-                PS = derefPSetForMemberIfNecessary(PS);
-            }
-            setPSet(UO, PS);
+            setPSet(UO, getPSet(UO->getSubExpr()));
         }
     }
 
@@ -1504,11 +1500,11 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
     if (B.succ_size() == 1 && *B.succ_begin() == &B.getParent()->getExit()) {
         PSetsMap PostConditions;
         getLifetimeContracts(PostConditions, AnalyzedFD, ASTCtxt, &B, IsConvertible, Reporter, /*Pre=*/false);
-        for (auto& VarToPSet : PostConditions) {
-            if (VarToPSet.first.isReturnVal()) {
+        for (auto& [OutVarInPostCond, OutPSetInPostCond] : PostConditions) {
+            if (OutVarInPostCond.isReturnVal()) {
                 continue;
             }
-            auto OutVarIt = PMap.find(VarToPSet.first);
+            auto OutVarIt = PMap.find(OutVarInPostCond);
             assert(OutVarIt != PMap.end());
 
             // HACK: output variable kept invalid on error path
@@ -1516,8 +1512,21 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
                 OutVarIt->second.removeEverythingButNull();
             }
 
-            OutVarIt->second.checkSubstitutableFor(VarToPSet.second, getSourceRange(B.back()), Reporter,
-                ValueSource::OutputParam, VarToPSet.first.getName());
+            OutVarIt->second.transformVars([&](Variable V) {
+                if (!V.isField()) {
+                    return V;
+                }
+
+                auto It = PMap.find(V);
+                if (It == PMap.end() || It->second.vars().empty()) {
+                    return V;
+                }
+
+                return *It->second.vars().begin();
+            });
+
+            OutVarIt->second.checkSubstitutableFor(OutPSetInPostCond, getSourceRange(B.back()), Reporter,
+                ValueSource::OutputParam, OutVarInPostCond.getName());
         }
     }
 } // namespace lifetime
