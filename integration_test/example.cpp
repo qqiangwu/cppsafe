@@ -162,7 +162,7 @@ void consume(vector<int>&&);
 void example_2_4_5_3() {
     vector<int> v(1000);
     auto iter = v.begin();		// pset(iter) = {v'}
-    consume(std::move(v));   		// A: pset(iter) = {invalid}, pset(v) = {invalid} expected-note {{modified here}}
+    consume(std::move(v));   		// A: pset(iter) = {invalid}, pset(v) = {invalid} expected-note {{moved here}}
     // expected-note@-1 {{moved here}}
     *iter;		    	    	// error, iter was invalidated on line A expected-warning {{passing a dangling pointer as argument}}
     v[100];			        	// error, v is moved-from and [] has a precondition expected-warning {{use a moved-from object}}

@@ -433,24 +433,24 @@ void CallVisitor::invalidateNonConstUse(const Expr* CallE)
 void CallVisitor::invalidateVarOnNoConstUse(const Expr* Arg, const TypeClassification& TC)
 {
     // TODO: callA(T&) -> callB(T&&), how to cope with this
-    const bool IsMovedFrom = Arg->isXValue();
+    const bool IsMovedFrom = Reporter.getOptions().LifetimeMove && Arg->isXValue();
 
     const PSet ArgPS = Builder.getPSet(Arg);
     for (const Variable& V : ArgPS.vars()) {
-        if (!IsMovedFrom) {
-            Builder.invalidateOwner(V, InvalidationReason::Modified(Arg->getSourceRange(), CurrentBlock));
-            continue;
-        }
+        const auto Reason = IsMovedFrom ? InvalidationReason::Moved(Arg->getSourceRange(), CurrentBlock)
+                                        : InvalidationReason::Modified(Arg->getSourceRange(), CurrentBlock);
 
         // p2.3.5 Move
         // When an Owner && parameter is invoked so that the && has a pset of {x'}, the && is bound to x and x’s
         // data will be moved from, so as a postcondition (after the function call) KILL(x'). When a non-Pointer x
         // is moved from, set pset(x) = {invalid} as a postcondition of the function call.
         if (TC.isOwner()) {
-            Builder.invalidateOwner(V, InvalidationReason::Moved(Arg->getSourceRange(), CurrentBlock));
+            Builder.invalidateOwner(V, Reason);
         }
 
-        Builder.invalidateVar(V, InvalidationReason::Moved(Arg->getSourceRange(), CurrentBlock));
+        if (IsMovedFrom) {
+            Builder.invalidateVar(V, Reason);
+        }
     }
 }
 

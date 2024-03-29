@@ -1,3 +1,4 @@
+// ARGS: --Wlifetime-move
 struct [[gsl::Owner(int)]] Owner {};
 
 struct Value {

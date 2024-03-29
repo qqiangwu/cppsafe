@@ -60,6 +60,16 @@ public:
     /// build the latter.
     void fillPSetsForDecl(LifetimeContractAttr* ContractAttr) const
     {
+        if (FD->isMain()) {
+            if (FD->getNumParams() >= 2) {
+                const ContractVariable V(FD->getParamDecl(1));
+                const ContractVariable DerefV = V.derefCopy();
+                ContractAttr->PrePSets.emplace(V, DerefV);
+                ContractAttr->PrePSets.emplace(DerefV, DerefV.derefCopy());
+            }
+            return;
+        }
+
         ParamDerivedLocations Locations;
 
         fillPreConditions(ContractAttr, Locations);
