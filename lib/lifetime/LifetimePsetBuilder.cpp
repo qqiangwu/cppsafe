@@ -1035,12 +1035,24 @@ PSet PSetsBuilder::getPSet(const Variable& P) const
     }
 
     // consider: ***v
-    if (P.getType().isNull()) {
+    const auto Ty = P.getType();
+    if (Ty.isNull()) {
         if (P.getDerefNum() > MaxOrderDepth) {
             return PSet::globalVar(false);
         }
 
         return PSet::singleton(P, 1);
+    }
+
+    // deref *o
+    // deref unknown pointers yields global
+    if (P.isDeref()) {
+        const auto TC = classifyTypeCategory(Ty);
+        if (TC.isPointer()) {
+            return PSet::globalVar(false);
+        }
+
+        return PSet::singleton(P, TC.isOwner() ? 1 : 0);
     }
 
     if (P.getType()->isArrayType()) {

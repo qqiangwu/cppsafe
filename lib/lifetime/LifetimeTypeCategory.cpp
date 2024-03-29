@@ -236,7 +236,7 @@ static TypeClassification classifyTypeCategoryImpl(const Type* T)
 
     if (!R) {
         if (T->isVoidPointerType()) {
-            return TypeCategory::Value;
+            return { TypeCategory::Pointer, T->getPointeeType() };
         }
 
         if (T->isArrayType()) {

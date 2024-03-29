@@ -1601,7 +1601,7 @@ auto fun() {
   auto i1 = v1.begin();
   auto i2 = v2.begin();
   v2.push_back(1);
-  __lifetime_pset(v2);  // expected-warning {{pset(v2) = ((invalid))}}
+  __lifetime_pset(v2);  // expected-warning {{pset(v2) = (**v1)}}
   __lifetime_pset(p1);  // expected-warning {{pset(p1) = (v1)}}
   __lifetime_pset(p2);  // expected-warning {{pset(p2) = (*v1)}}
   __lifetime_pset(i1);  // expected-warning {{pset(i1) = (*v1)}}
