@@ -1,3 +1,5 @@
+// ARGS: -Wlifetime-move
+
 namespace std {
 
 template <class T>

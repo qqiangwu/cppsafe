@@ -1,4 +1,4 @@
-// ARGS: -Wlifetime-move
+// ARGS: --Wlifetime-move
 
 #include <vector>
 
@@ -28,7 +28,7 @@ void test_owner()
 
     auto it = v1.begin();
     v2 = std::move(v1);
-    // expected-note@-1 {{modified here}}
+    // expected-note@-1 {{moved here}}
     // expected-note@-2 {{moved here}}
     // expected-note@-3 {{moved here}}
     // expected-note@-4 {{moved here}}
