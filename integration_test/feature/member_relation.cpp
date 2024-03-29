@@ -1,3 +1,4 @@
+// ARGS: --Wlifetime-move
 struct Value {
     int x;
     int y;

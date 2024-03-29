@@ -1,4 +1,4 @@
-// ARGS: --Wlifetime-null
+// ARGS: --Wlifetime-null --Wlifetime-move
 // This is intedend to contain all examples that are linked from the paper.
 
 #include <iostream>

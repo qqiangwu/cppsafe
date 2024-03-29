@@ -45,8 +45,8 @@ private:
 
     void invalidateNonConstUse(const Expr* CallE);
     void invalidateVarOnNoConstUse(const Expr* Arg, const TypeClassification& TC);
-    void checkUseAfterFree(const PSetsMap& PreConditions, const ParmVarDecl* PVD, const Expr* Arg);
-    bool checkUseAfterFree(const Type* Ty, const PSet& P, SourceRange Range);
+    void checkUseAfterMove(const PSetsMap& PreConditions, const ParmVarDecl* PVD, const Expr* Arg);
+    bool checkUseAfterMove(const Type* Ty, const PSet& P, SourceRange Range);
 
 private:
     PSBuilder& Builder;

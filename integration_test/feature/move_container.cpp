@@ -1,4 +1,4 @@
-// ARGS: -Wlifetime-container-move
+// ARGS: -Wlifetime-container-move -Wlifetime-move
 
 namespace std {
 
