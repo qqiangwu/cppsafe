@@ -53,3 +53,18 @@ const Owner<int>& get(const Owner<Pair>& p)
 {
     return p.get().y;
 };
+
+CPPSAFE_POST("return", "*p")
+const Owner<int>& get2(const Owner<Ptr<Owner<int>>>& p)
+{
+    __lifetime_contracts(&get2);
+    // expected-warning@-1 {{pset(Pre(p)) = (*p)}}
+    // expected-warning@-2 {{pset(Pre(*p)) = (**p)}}
+    // expected-warning@-3 {{pset(Post((return value))) = (**p)}}
+
+    auto& v = p.get().get();
+    __lifetime_pset(v);
+    // expected-warning@-1 {{pset(v) = ((global))}}
+
+    return v;
+};

@@ -5,7 +5,10 @@ struct [[gsl::Owner(T)]] Owner {
 };
 
 template <class T>
-struct [[gsl::Pointer(T)]] Ptr {};
+struct [[gsl::Pointer(T)]] Ptr {
+    T& get();
+    const T& get() const;
+};
 
 template <class T>
 void __lifetime_pset(T&&);
