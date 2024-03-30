@@ -135,3 +135,42 @@ void test_return()
     __lifetime_pset(a.v1);  // expected-warning {{pset(a.v1) = ((invalid))}}
     __lifetime_pset(a.v2);  // expected-warning {{pset(a.v2) = ((invalid))}}
 }
+
+void test_assignment()
+{
+    Aggr a;
+    eat(std::move(a));
+    __lifetime_pset(a);  // expected-warning {{pset(a) = ((invalid))}}
+    __lifetime_pset(a.o1);  // expected-warning {{pset(a.o1) = ((invalid))}}
+    __lifetime_pset(a.o2);  // expected-warning {{pset(a.o2) = ((invalid))}}
+    __lifetime_pset(a.v1);  // expected-warning {{pset(a.v1) = ((invalid))}}
+    __lifetime_pset(a.v2);  // expected-warning {{pset(a.v2) = ((invalid))}}
+
+    a = {};
+    __lifetime_pset(a);  // expected-warning {{pset(a) = (a)}}
+    __lifetime_pset(a.o1);  // expected-warning {{pset(a.o1) = (*a.o1)}}
+    __lifetime_pset(a.o2);  // expected-warning {{pset(a.o2) = (*a.o2)}}
+    __lifetime_pset(a.v1);  // expected-warning {{pset(a.v1) = (a.v1)}}
+    __lifetime_pset(a.v2);  // expected-warning {{pset(a.v2) = (a.v2)}}
+}
+
+void test_compound_assignment()
+{
+    Aggr a;
+    eat(std::move(a));
+    __lifetime_pset(a);  // expected-warning {{pset(a) = ((invalid))}}
+    __lifetime_pset(a.o1);  // expected-warning {{pset(a.o1) = ((invalid))}}
+    __lifetime_pset(a.o2);  // expected-warning {{pset(a.o2) = ((invalid))}}
+    __lifetime_pset(a.v1);  // expected-warning {{pset(a.v1) = ((invalid))}}
+    __lifetime_pset(a.v2);  // expected-warning {{pset(a.v2) = ((invalid))}}
+
+    a = {
+        .o1 = {},
+        .v1 = {},
+    };
+    __lifetime_pset(a);  // expected-warning {{pset(a) = (a)}}
+    __lifetime_pset(a.o1);  // expected-warning {{pset(a.o1) = (*a.o1)}}
+    __lifetime_pset(a.o2);  // expected-warning {{pset(a.o2) = (*a.o2)}}
+    __lifetime_pset(a.v1);  // expected-warning {{pset(a.v1) = (a.v1)}}
+    __lifetime_pset(a.v2);  // expected-warning {{pset(a.v2) = (a.v2)}}
+}

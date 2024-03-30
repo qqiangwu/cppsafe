@@ -56,7 +56,7 @@ namespace {
 #define DBG(x)
 #endif
 
-bool isPointer(const Expr* E)
+inline bool isPointer(const Expr* E)
 {
     auto TC = classifyTypeCategory(E->getType());
     return TC == TypeCategory::Pointer;
@@ -451,11 +451,15 @@ public:
         if (BO->getOpcode() == BO_Assign) {
             // Owners usually are user defined types. We should see a function call.
             // Do we need to handle raw pointers annotated as owners?
-            if (isPointer(BO)) {
+            const auto TC = classifyTypeCategory(BO->getType());
+            if (TC.isPointer()) {
                 // This assignment updates a Pointer.
                 const SourceRange Range = BO->getRHS()->getSourceRange();
                 const PSet LHS = handlePointerAssign(BO->getLHS()->getType(), getPSet(BO->getRHS()), Range);
                 setPSet(getPSet(BO->getLHS()), LHS, Range);
+            } else if (TC.isAggregate()) {
+                const SourceRange Range = BO->getRHS()->getSourceRange();
+                setPSet(getPSet(BO->getLHS()), getPSet(BO->getRHS()), Range);
             }
 
             setPSet(BO, getPSet(BO->getLHS()));
@@ -1161,6 +1165,17 @@ void PSetsBuilder::setPSet(const PSet& LHS, PSet RHS, SourceRange Range)
         auto I = PMap.find(Var);
         if (I != PMap.end()) {
             I->second = std::move(RHS);
+
+            // TODO: handle aggregate assignment
+            // update aggregate remove all fields
+            // NOLINTNEXTLINE(misc-include-cleaner): false positive
+            std::erase_if(PMap, [&Var](const auto& Item) {
+                if (Item.first == Var) {
+                    return false;
+                }
+
+                return Var.isParent(Item.first);
+            });
         } else {
             PMap.emplace(Var, RHS);
         }
