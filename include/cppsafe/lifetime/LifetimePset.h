@@ -12,10 +12,12 @@
 
 #include "cppsafe/lifetime/LifetimeAttrData.h"
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
+#include "cppsafe/util/assert.h"
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
 #include <clang/AST/DeclCXX.h>
+#include <fmt/core.h>
 #include <llvm/ADT/STLFunctionalExtras.h>
 #include <llvm/ADT/StringExtras.h>
 #include <range/v3/algorithm/find_if_not.hpp>
@@ -235,7 +237,6 @@ public:
             } else {
                 Ret = "(temporary)";
             }
-
         } else if (const auto* VD = asVarDecl()) {
             Ret = VD->getName().str();
         } else if (const auto* BD = asBindingDecl()) {
@@ -245,13 +246,13 @@ public:
         } else if (isReturnVal()) {
             Ret = "(return value)";
         } else {
-            llvm_unreachable("Invalid state");
+            CPPSAFE_ASSERT(!"Invalid state");
         }
 
         for (unsigned I = 0; I < FDs.size(); ++I) {
             if (FDs[I]) {
                 if (I > 0 && !FDs[I - 1]) {
-                    Ret = "(" + Ret + ")";
+                    Ret = fmt::format("({})", Ret);
                 }
                 Ret += "." + std::string(FDs[I]->getName());
             } else {
@@ -606,7 +607,7 @@ public:
                 V.deref();
             }
 
-            auto I = O.Vars.find(V);
+            auto I = llvm::find_if(O.Vars, [V](const auto& ContractOutVar) { return ContractOutVar.isParent(V); });
             if (I == O.Vars.end() || I->getOrder() > V.getOrder()) {
                 if (!Reporter.getOptions().LifetimePost && V.isThisPointer()) {
                     continue;
