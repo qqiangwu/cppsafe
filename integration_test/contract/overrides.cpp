@@ -3,12 +3,17 @@ struct Base
     virtual void foo1(int* p [[clang::annotate("gsl::lifetime_pre", ":global")]],
                       int* q [[clang::annotate("gsl::lifetime_pre", ":global")]]) = 0;
     virtual void foo2(int** x [[clang::annotate("gsl::lifetime_in")]]) = 0;
+
+    [[clang::annotate("gsl::lifetime_post", "return", ":global")]]
+    virtual int* foo3(int* q) = 0;
 };
 
 struct Derived : Base
 {
     void foo1(int* p, int* q) override;
     void foo2(int** x) override;
+
+    int* foo3(int* q) override;
 };
 
 struct DeriveRenamed : Base
@@ -39,6 +44,11 @@ void test()
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
     // expected-warning@-2 {{pset(Pre(x)) = ((null), *x)}}
     // expected-warning@-3 {{pset(Pre(*x)) = ((null), **x)}}
+
+    __lifetime_contracts(&Derived::foo3);
+    // expected-warning@-1 {{pset(Post((return value))) = ((global))}}
+    // expected-warning@-2 {{}}
+    // expected-warning@-3 {{}}
 
     __lifetime_contracts(&DeriveRenamed::foo1);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}

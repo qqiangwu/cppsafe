@@ -16,6 +16,7 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Support/InitLLVM.h>
+#include <llvm/Support/PrettyStackTrace.h>
 #include <llvm/Support/WithColor.h>
 
 #include <algorithm>
@@ -151,6 +152,8 @@ Extra args:
 )");
 
     const llvm::InitLLVM _(argc, argv);
+    llvm::setBugReportMsg("PLEASE submit a bug report to https://github.com/qqiangwu/cppsafe/issues/ and include the "
+                          "crash backtrace.\n");
 
     const char* Overview = "C++ Core Guidelines Lifetime profile static analyzer";
     auto OptionsParser = CommonOptionsParser::create(argc, argv, CppSafeCategory, llvm::cl::OneOrMore, Overview);

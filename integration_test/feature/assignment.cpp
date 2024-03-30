@@ -14,3 +14,20 @@ void test_pointer_assignment(Test* t)
     t = new Test{};
     __lifetime_pset(t->p);  // expected-warning {{pset(t->p) = ((global))}}
 }
+
+struct Aggr {
+    int x;
+    int y;
+};
+
+void foo()
+{
+    Aggr a;
+    a = {};
+}
+
+void foo2()
+{
+    auto a = new Aggr{};
+    *a = {};
+}

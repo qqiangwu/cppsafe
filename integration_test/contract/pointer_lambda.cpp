@@ -72,3 +72,19 @@ void test_functional()
 }
 
 };
+
+void foo3(int* p = nullptr, int* a = 0)
+{
+    auto m1 = [p]{};
+    auto m2 = [a]{};
+
+    __lifetime_pset(m1);  // expected-warning {{pset(m1) = ((null), *p)}}
+    __lifetime_pset(m2);  // expected-warning {{pset(m2) = ((null), *a)}}
+
+    __lifetime_pset(p);  // expected-warning {{pset(p) = ((null), *p)}}
+    __lifetime_pset(a);  // expected-warning {{pset(a) = ((null), *a)}}
+
+    auto x = p + 1;
+    auto m3 = [x]{};
+    __lifetime_pset(x);  // expected-warning {{pset(x) = ((null), *p)}}
+}
