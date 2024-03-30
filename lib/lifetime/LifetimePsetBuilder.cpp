@@ -697,6 +697,12 @@ public:
                 setPSet(PSet::singleton(Var), PSet::invalid(Reason), Reason.getRange());
             }
         }
+
+        // NOLINTNEXTLINE
+        std::erase_if(PMap, [&V](const auto& Item) {
+            const Variable& Var = Item.first;
+            return V != Var && Var.isField() && V.isParent(Var);
+        });
     }
 
     void removePSetIf(llvm::function_ref<bool(const Variable&, const PSet&)> Fn) override

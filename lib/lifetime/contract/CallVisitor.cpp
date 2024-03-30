@@ -461,6 +461,8 @@ void CallVisitor::invalidateVarOnNoConstUse(const Expr* Arg, const TypeClassific
             Builder.invalidateOwner(V, Reason);
         }
 
+        // TODO: expand aggregate to invalidate sub-owners
+
         if (IsMovedFrom) {
             Builder.invalidateVar(V, Reason);
         }
