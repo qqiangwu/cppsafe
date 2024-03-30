@@ -55,13 +55,13 @@ public:
 /// Updates psets with all effects that appear in the block.
 /// \param Reporter if non-null, emits diagnostics
 /// \returns false when an unsupported AST node disabled the analysis
-bool VisitBlock(const FunctionDecl* FD, PSetsMap& PMap, std::optional<PSetsMap>& FalseBranchExitPMap,
+bool visitBlock(const FunctionDecl* FD, PSetsMap& PMap, std::optional<PSetsMap>& FalseBranchExitPMap,
     std::map<const Expr*, PSet>& PSetsOfExpr, std::map<const Expr*, PSet>& RefersTo, const CFGBlock& B,
     LifetimeReporterBase& Reporter, ASTContext& ASTCtxt, IsConvertibleTy IsConvertible);
 
 /// Get the initial PSets for function parameters.
 void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTContext& ASTCtxt, const CFGBlock* Block,
-    IsConvertibleTy isConvertible, LifetimeReporterBase& Reporter, bool Pre = true, bool IgnoreNull = false,
+    IsConvertibleTy IsConvertible, LifetimeReporterBase& Reporter, bool Pre = true, bool IgnoreNull = false,
     bool IgnoreFields = false);
 } // namespace lifetime
 } // namespace clang

@@ -1,5 +1,5 @@
 ---
-HeaderFilterRegex: ^(include|src|tests|benches)
+HeaderFilterRegex: .*.h
 Checks:
   -*
   clang-*
@@ -204,7 +204,6 @@ Checks:
   misc-misplaced-const
   misc-new-delete-overloads
   misc-non-copyable-objects
-  misc-non-private-member-variables-in-classes
   misc-redundant-expression
   misc-static-assert
   misc-throw-by-value-catch-by-reference

@@ -137,7 +137,7 @@ public:
     /// TODO: Should we cache the type instead of calculating?
     QualType getType() const
     {
-        int Order;
+        int Order = 0;
         return getTypeAndOrder(Order);
     }
 
@@ -149,15 +149,18 @@ public:
         assert(!isReturnVal() && "We don't store types of return values here");
         if (const auto* VD = asVarDecl()) {
             return VD->getType();
-        } else if (const auto* BD = asBindingDecl()) {
-            return BD->getType();
-        } else if (const MaterializeTemporaryExpr* MT = asTemporary()) {
-            return MT->getType();
-        } else if (const RecordDecl* RD = asThis()) {
-            return RD->getASTContext().getPointerType(RD->getASTContext().getRecordType(RD));
-        } else {
-            llvm_unreachable("invalid state");
         }
+        if (const auto* BD = asBindingDecl()) {
+            return BD->getType();
+        }
+        if (const MaterializeTemporaryExpr* MT = asTemporary()) {
+            return MT->getType();
+        }
+        if (const RecordDecl* RD = asThis()) {
+            return RD->getASTContext().getPointerType(RD->getASTContext().getRecordType(RD));
+        }
+
+        CPPSAFE_ASSERT(!"Invalid state");
     }
 
     bool isField() const { return !FDs.empty() && FDs.back(); }
@@ -216,7 +219,7 @@ public:
 
     unsigned getOrder() const
     {
-        int Order;
+        int Order = -1;
         getTypeAndOrder(Order);
         return Order >= 0 ? Order : 0;
     }
@@ -341,43 +344,43 @@ public:
         Reporter.note(Reason, Range);
     }
 
-    static InvalidationReason NotInitialized(SourceRange Range, const CFGBlock* Block)
+    static InvalidationReason notInitialized(SourceRange Range, const CFGBlock* Block)
     {
         return { Range, Block, NoteType::NeverInit };
     }
 
-    static InvalidationReason PointeeLeftScope(SourceRange Range, const CFGBlock* Block, const VarDecl* Pointee)
+    static InvalidationReason pointeeLeftScope(SourceRange Range, const CFGBlock* Block, const VarDecl* Pointee)
     {
         assert(Pointee);
         return { Range, Block, NoteType::PointeeLeftScope, Pointee };
     }
 
-    static InvalidationReason TemporaryLeftScope(SourceRange Range, const CFGBlock* Block)
+    static InvalidationReason temporaryLeftScope(SourceRange Range, const CFGBlock* Block)
     {
         return { Range, Block, NoteType::TempDestroyed };
     }
 
-    static InvalidationReason Dereferenced(SourceRange Range, const CFGBlock* Block)
+    static InvalidationReason dereferenced(SourceRange Range, const CFGBlock* Block)
     {
         return { Range, Block, NoteType::Dereferenced };
     }
 
-    static InvalidationReason ForbiddenCast(SourceRange Range, const CFGBlock* Block)
+    static InvalidationReason forbiddenCast(SourceRange Range, const CFGBlock* Block)
     {
         return { Range, Block, NoteType::ForbiddenCast };
     }
 
-    static InvalidationReason Modified(SourceRange Range, const CFGBlock* Block)
+    static InvalidationReason modified(SourceRange Range, const CFGBlock* Block)
     {
         return { Range, Block, NoteType::Modified };
     }
 
-    static InvalidationReason Deleted(SourceRange Range, const CFGBlock* Block)
+    static InvalidationReason deleted(SourceRange Range, const CFGBlock* Block)
     {
         return { Range, Block, NoteType::Deleted };
     }
 
-    static InvalidationReason Moved(SourceRange Range, const CFGBlock* Block)
+    static InvalidationReason moved(SourceRange Range, const CFGBlock* Block)
     {
         return { Range, Block, NoteType::Moved };
     }
@@ -471,14 +474,14 @@ public:
 
     void explainWhyInvalid(LifetimeReporterBase& Reporter) const
     {
-        for (auto& R : InvReasons) {
+        for (const auto& R : InvReasons) {
             R.emitNote(Reporter);
         }
     }
 
     void explainWhyNull(LifetimeReporterBase& Reporter) const
     {
-        for (auto& R : NullReasons) {
+        for (const auto& R : NullReasons) {
             R.emitNote(Reporter);
         }
     }
@@ -488,14 +491,14 @@ public:
         if (!Reporter.shouldFilterWarnings()) {
             return false;
         }
-        for (auto& R : InvReasons) {
+        for (const auto& R : InvReasons) {
             if (auto V = R.getInvalidatedMemory()) {
                 if (Reporter.shouldBeFiltered(R.getBlock(), &V.value())) {
                     return true;
                 }
             }
         }
-        for (auto& R : NullReasons) {
+        for (const auto& R : NullReasons) {
             if (auto V = R.getNulledMemory()) {
                 if (Reporter.shouldBeFiltered(R.getBlock(), &V.value())) {
                     return true;
@@ -511,14 +514,14 @@ public:
     bool isUnknown() const { return !ContainsInvalid && !ContainsNull && !ContainsGlobal && Vars.empty(); }
 
     /// Returns true if we look for S and we have S.field in the set.
-    bool containsParent(Variable Var) const
+    bool containsParent(const Variable& Var) const
     {
         return llvm::any_of(Vars, [Var](const Variable& Other) { return Var.isParent(Other); });
     }
 
     bool containsNull() const { return ContainsNull; }
     bool isNull() const { return ContainsNull && !ContainsGlobal && !ContainsInvalid && Vars.empty(); }
-    void addNull(NullReason Reason)
+    void addNull(const NullReason& Reason)
     {
         if (ContainsNull) {
             return;
@@ -539,7 +542,7 @@ public:
         Vars.clear();
     }
 
-    void addNullReason(NullReason Reason)
+    void addNullReason(const NullReason& Reason)
     {
         assert(ContainsNull);
         NullReasons.push_back(Reason);
@@ -669,7 +672,7 @@ public:
     // * Non-checking: The resulting pset will contain null if 'To' contains
     //   null. This is useful so code like 'int *p = f(&x);' will result in a
     //   non-null pset for 'p'.
-    void bind(Variable ToReplace, const PSet& To, bool Checking = true)
+    void bind(const Variable& ToReplace, const PSet& To, bool Checking = true)
     {
         // Replace valid deref locations.
         if (Vars.erase(ToReplace)) {
@@ -689,7 +692,7 @@ public:
         return Ret;
     }
 
-    void insert(Variable Var, unsigned Deref = 0)
+    void insert(const Variable& Var)
     {
         if (Var.hasStaticLifetime()) {
             ContainsGlobal = true;
@@ -743,46 +746,49 @@ public:
     template <class Fn> void eraseIf(const Fn&& F) { std::erase_if(Vars, F); }
 
     /// The pointer is dangling
-    static PSet invalid(InvalidationReason Reason) { return invalid(std::vector<InvalidationReason> { Reason }); }
+    static PSet invalid(const InvalidationReason& Reason)
+    {
+        return invalid(std::vector<InvalidationReason> { Reason });
+    }
 
     /// The pointer is dangling
     static PSet invalid(const std::vector<InvalidationReason>& Reasons)
     {
-        PSet ret;
-        ret.ContainsInvalid = true;
-        ret.InvReasons = Reasons;
-        return ret;
+        PSet Ret;
+        Ret.ContainsInvalid = true;
+        Ret.InvReasons = Reasons;
+        return Ret;
     }
 
     /// A pset that contains only (null)
-    static PSet null(NullReason Reason)
+    static PSet null(const NullReason& Reason)
     {
-        PSet ret;
-        ret.ContainsNull = true;
-        ret.NullReasons.push_back(Reason);
-        return ret;
+        PSet Ret;
+        Ret.ContainsNull = true;
+        Ret.NullReasons.push_back(Reason);
+        return Ret;
     }
 
     /// A pset that contains (global), (null)
     static PSet globalVar(bool Nullable = false)
     {
-        PSet ret;
-        ret.ContainsNull = Nullable;
-        ret.ContainsGlobal = true;
-        return ret;
+        PSet Ret;
+        Ret.ContainsNull = Nullable;
+        Ret.ContainsGlobal = true;
+        return Ret;
     }
 
     /// The pset contains one element
     static PSet singleton(Variable Var, unsigned Deref = 0)
     {
-        PSet ret;
+        PSet Ret;
         if (Var.hasStaticLifetime()) {
-            ret.ContainsGlobal = true;
+            Ret.ContainsGlobal = true;
         } else {
-            Var.deref(Deref);
-            ret.Vars.emplace(Var);
+            Var.deref(static_cast<int>(Deref));
+            Ret.Vars.emplace(Var);
         }
-        return ret;
+        return Ret;
     }
 
 private:

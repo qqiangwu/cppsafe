@@ -63,7 +63,7 @@ struct ContractVariable {
 
         for (auto I = FDs.begin(), J = O.FDs.begin(); I != FDs.end(); ++I, ++J) {
             if (*I != *J) {
-                return std::less<const FieldDecl*>()(*I, *J);
+                return *I < *J;
             }
         }
         return false;
@@ -117,11 +117,13 @@ struct ContractVariable {
     }
 
 protected:
+    // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
     llvm::PointerUnion<const VarDecl*, const BindingDecl*, const Expr*, const RecordDecl*> Var;
 
     /// Possibly empty list of fields and deref operations on the base.
     /// The First entry is the field on base, next entry is the field inside
     /// there, etc. Null pointers represent a deref operation.
+    // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
     llvm::SmallVector<const FieldDecl*, 4> FDs;
 };
 
