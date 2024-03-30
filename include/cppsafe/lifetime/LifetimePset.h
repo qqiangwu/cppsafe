@@ -600,15 +600,12 @@ public:
         }
 
         // If 'this' includes o'', then 'O' must include o'' or o'. (etc.)
-        for (auto V : Vars) {
-            if (V.isThisPointer()) {
-                // TODO: simplifiy symbol calculation for *this based symbols
-                V = Variable::thisPointer(V.asThis());
-                V.deref();
-            }
-
-            auto I = llvm::find_if(O.Vars, [V](const auto& ContractOutVar) { return ContractOutVar.isParent(V); });
+        for (const auto& V : Vars) {
+            const auto I
+                = llvm::find_if(O.Vars, [V](const auto& ContractOutVar) { return ContractOutVar.isParent(V); });
             if (I == O.Vars.end() || I->getOrder() > V.getOrder()) {
+                // returning a pointer with points-to set (*(*this).buffer_) where points-to set ((null), **this) is
+                // expected where *this is a pointer and buffer_ is a pointer two
                 if (!Reporter.getOptions().LifetimePost && V.isThisPointer()) {
                     continue;
                 }
