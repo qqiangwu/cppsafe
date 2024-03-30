@@ -1,7 +1,4 @@
-template <class T>
-void __lifetime_pset(T&&);
-
-void __lifetime_pmap();
+#include "common.h"
 
 void foo(int** p);
 
@@ -20,6 +17,20 @@ void test()
 
 };
 
+void alloc(void** p);
+
+void test_alloc()
+{
+    void* a;
+    int* b;
+
+    alloc(&a);
+    foo(&b);
+
+    __lifetime_pset(a);  // expected-warning {{pset(a) = (a)}}
+    __lifetime_pset(b);  // expected-warning {{pset(b) = ((global))}}
+}
+
 struct Value {
     ~Value();
 };
@@ -31,3 +42,14 @@ void foo(Value** v)
     }
     *v = new Value{};
 }
+
+struct Pair {
+    int x;
+    Owner<int> y;
+};
+
+CPPSAFE_POST("return", "*p")
+const Owner<int>& get(const Owner<Pair>& p)
+{
+    return p.get().y;
+};
