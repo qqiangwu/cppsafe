@@ -15,6 +15,7 @@
 #include "cppsafe/util/type.h"
 
 #include <clang/Basic/SourceLocation.h>
+#include <llvm/ADT/STLFunctionalExtras.h>
 
 namespace clang {
 class CFGBlock;
@@ -46,6 +47,9 @@ public:
 
     virtual void invalidateOwner(const Variable& V, const InvalidationReason& Reason) = 0;
     virtual void invalidateVar(const Variable& V, const InvalidationReason& Reason) = 0;
+
+    // Workaround
+    virtual void removePSetIf(llvm::function_ref<bool(const Variable&, const PSet&)> Fn) = 0;
 };
 
 /// Updates psets with all effects that appear in the block.

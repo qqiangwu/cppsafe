@@ -192,7 +192,8 @@ void CallVisitor::tryResetPSet(const CallExpr* CallE)
 
     // for `x->reset()`, Obj is `x`, with type pointer to CXXRecord
     const auto* T = Obj->getType()->getPointeeCXXRecordDecl();
-    if ((!T && isPointer(Obj)) || (T && classifyTypeCategory(T->getTypeForDecl()).isPointer())) {
+    const auto TC = classifyTypeCategory(Obj->getType());
+    if ((!T && TC.isPointer()) || (T && classifyTypeCategory(T->getTypeForDecl()).isPointer())) {
         const bool Nullable = isNullableType(T ? T->getTypeForDecl()->getCanonicalTypeUnqualified() : Obj->getType());
 
         Builder.setPSet(Builder.getPSet(Obj), PSet::globalVar(Nullable), CallE->getSourceRange());
@@ -200,10 +201,22 @@ void CallVisitor::tryResetPSet(const CallExpr* CallE)
     }
 
     PSet P = Builder.getPSet(Obj);
-    if (isOwner(Obj) || (T && classifyTypeCategory(T->getTypeForDecl()).isOwner())) {
+    if (TC.isOwner() || (T && classifyTypeCategory(T->getTypeForDecl()).isOwner())) {
         if (!P.vars().empty()) {
             P = PSet::singleton(*P.vars().begin(), 1);
         }
+    }
+
+    // Workaround: aggregate assignment
+    if (TC.isAggregate()) {
+        const auto PS = Builder.getPSet(Obj);
+
+        if (PS.vars().size() == 1) {
+            const auto& Var = *PS.vars().begin();
+            Builder.removePSetIf([&Var](const auto& V, const auto&) { return Var.isParent(V); });
+        }
+
+        // TODO: handle aggregate assignment
     }
 
     Builder.setPSet(Builder.getPSet(Obj), P, CallE->getSourceRange());
@@ -494,5 +507,4 @@ bool CallVisitor::checkUseAfterMove(const Type* Ty, const PSet& P, SourceRange R
     P.explainWhyInvalid(Reporter);
     return false;
 }
-
 }

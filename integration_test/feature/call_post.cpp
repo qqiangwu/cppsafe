@@ -1,6 +1,8 @@
 template <class T>
 void __lifetime_pset(T&&);
 
+void __lifetime_pmap();
+
 void foo(int** p);
 
 struct Test {
@@ -17,3 +19,15 @@ void test()
 }
 
 };
+
+struct Value {
+    ~Value();
+};
+
+void foo(Value** v)
+{
+    if (v == nullptr) {
+        return;
+    }
+    *v = new Value{};
+}

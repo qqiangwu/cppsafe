@@ -15,6 +15,7 @@
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
 #include "cppsafe/lifetime/contract/CallVisitor.h"
+#include "cppsafe/util/assert.h"
 #include "cppsafe/util/type.h"
 
 #include <clang/AST/Attr.h>
@@ -35,11 +36,11 @@
 #include <clang/Lex/Lexer.h>
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/STLFunctionalExtras.h>
 #include <llvm/ADT/StringSwitch.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <llvm/Support/raw_ostream.h>
 
-#include <cassert>
 #include <map>
 #include <optional>
 #include <utility>
@@ -457,9 +458,6 @@ public:
                 const SourceRange Range = BO->getRHS()->getSourceRange();
                 const PSet LHS = handlePointerAssign(BO->getLHS()->getType(), getPSet(BO->getRHS()), Range);
                 setPSet(getPSet(BO->getLHS()), LHS, Range);
-            } else if (TC.isAggregate()) {
-                const SourceRange Range = BO->getRHS()->getSourceRange();
-                setPSet(getPSet(BO->getLHS()), getPSet(BO->getRHS()), Range);
             }
 
             setPSet(BO, getPSet(BO->getLHS()));
@@ -467,7 +465,19 @@ public:
             setPSet(BO, getPSet(BO->getLHS()));
         } else if (BO->getType()->isPointerType()) {
             Reporter.warnPointerArithmetic(BO->getOperatorLoc());
-            setPSet(BO, {});
+            const auto* LHS = BO->getLHS();
+            const auto* RHS = BO->getRHS();
+            // consider `++idx, ptr = x`
+            // consider `a.*memberptr()`
+            if (llvm::is_contained({ BO_Add, BO_AddAssign, BO_Sub, BO_SubAssign }, BO->getOpcode())) {
+                if (LHS->getType()->isPointerType()) {
+                    setPSet(BO, getPSet(LHS));
+                } else {
+                    setPSet(BO, getPSet(RHS));
+                }
+            } else {
+                setPSet(BO, {});
+            }
         } else if (BO->isLValue() && BO->isCompoundAssignmentOp()) {
             setPSet(BO, getPSet(BO->getLHS()));
         } else if (BO->isLValue() && BO->getOpcode() == BO_Comma) {
@@ -689,6 +699,12 @@ public:
         }
     }
 
+    void removePSetIf(llvm::function_ref<bool(const Variable&, const PSet&)> Fn) override
+    {
+        // NOLINTNEXTLINE
+        std::erase_if(PMap, [Fn](const auto& X) { return Fn(X.first, X.second); });
+    }
+
     // Remove the variable from the pset together with the materialized
     // temporaries extended by that variable. It also invalidates the pointers
     // pointing to these.
@@ -739,27 +755,28 @@ public:
             }
 #ifndef NDEBUG
             E->dump();
-            llvm_unreachable("Expression has no entry in RefersTo");
 #endif
-            return {};
-        } else { // NOLINT(readability-else-after-return)
-            if (isa<CXXNullPtrLiteralExpr>(E)) {
-                return PSet::null(NullReason::nullptrConstant(E->getSourceRange(), CurrentBlock));
-            }
+            CPPSAFE_ASSERT(!"Expression has no entry in RefersTo");
+        }
 
-            auto I = PSetsOfExpr.find(E);
-            if (I != PSetsOfExpr.end()) {
-                return I->second;
-            }
-            if (AllowNonExisting) {
-                return {};
-            }
-#ifndef NDEBUG
-            E->dump();
-            llvm_unreachable("Expression has no entry in PSetsOfExpr");
-#endif
+        // handle Ctor(nullptr_t)
+        if (isa<CXXNullPtrLiteralExpr>(E)) {
+            return PSet::null(NullReason::nullptrConstant(E->getSourceRange(), CurrentBlock));
+        }
+
+        auto I = PSetsOfExpr.find(E);
+        if (I != PSetsOfExpr.end()) {
+            return I->second;
+        }
+
+        if (AllowNonExisting) {
             return {};
         }
+
+#ifndef NDEBUG
+        E->dump();
+#endif
+        CPPSAFE_ASSERT(!"Expression has no entry in PSetsOfExpr");
     }
 
     PSet getPSet(const PSet& P) const override
@@ -931,7 +948,7 @@ public:
                 }
 
                 auto GetVarDeclPset = [this](const VarDecl* VD) {
-                    if (const auto* I = VD->getInit()) {
+                    if (const auto* I = VD->getInit(); I && VD->isInitCapture()) {
                         return getPSet(I);
                     }
                     return getPSet(VD);
@@ -1165,17 +1182,6 @@ void PSetsBuilder::setPSet(const PSet& LHS, PSet RHS, SourceRange Range)
         auto I = PMap.find(Var);
         if (I != PMap.end()) {
             I->second = std::move(RHS);
-
-            // TODO: handle aggregate assignment
-            // update aggregate remove all fields
-            // NOLINTNEXTLINE(misc-include-cleaner): false positive
-            std::erase_if(PMap, [&Var](const auto& Item) {
-                if (Item.first == Var) {
-                    return false;
-                }
-
-                return Var.isParent(Item.first);
-            });
         } else {
             PMap.emplace(Var, RHS);
         }
@@ -1527,12 +1533,12 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
     if (B.succ_size() == 1 && *B.succ_begin() == &B.getParent()->getExit()) {
         PSetsMap PostConditions;
         getLifetimeContracts(PostConditions, AnalyzedFD, ASTCtxt, &B, IsConvertible, Reporter, /*Pre=*/false);
-        for (auto& [OutVarInPostCond, OutPSetInPostCond] : PostConditions) {
+        for (const auto& [OutVarInPostCond, OutPSetInPostCond] : PostConditions) {
             if (OutVarInPostCond.isReturnVal()) {
                 continue;
             }
             auto OutVarIt = PMap.find(OutVarInPostCond);
-            assert(OutVarIt != PMap.end());
+            CPPSAFE_ASSERT(OutVarIt != PMap.end());
 
             // HACK: output variable kept invalid on error path
             if (OutVarIt->second.containsInvalid() && !Reporter.getOptions().LifetimeOutput) {

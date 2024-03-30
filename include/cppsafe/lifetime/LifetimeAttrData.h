@@ -107,6 +107,8 @@ struct ContractVariable {
             Ret.Var = Derived->getParamDecl(PVD->getFunctionScopeIndex());
         } else if (isThisPointer()) {
             Ret.Var = Derived->getParent();
+        } else if (isReturnVal()) {
+            /* empty */
         } else {
             assert(false);
         }
