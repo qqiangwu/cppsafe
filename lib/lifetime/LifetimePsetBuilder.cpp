@@ -44,6 +44,7 @@
 #include <map>
 #include <optional>
 #include <utility>
+#include <vector>
 
 namespace clang::lifetime {
 
@@ -175,11 +176,11 @@ public:
             const PSet PS = getPSet(DE->getArgument());
             for (const auto& Var : PS.vars()) {
                 // TODO: diagnose if we are deleting the buffer of on owner?
-                invalidateVar(Var, InvalidationReason::Deleted(DE->getSourceRange(), CurrentBlock));
+                invalidateVar(Var, InvalidationReason::deleted(DE->getSourceRange(), CurrentBlock));
             }
 
             setPSet(getPSet(DE->getArgument()->IgnoreImplicit()),
-                PSet::invalid(InvalidationReason::Deleted(DE->getSourceRange(), CurrentBlock)), DE->getSourceRange());
+                PSet::invalid(InvalidationReason::deleted(DE->getSourceRange(), CurrentBlock)), DE->getSourceRange());
         }
     }
 
@@ -530,7 +531,7 @@ public:
         // the ReturnStmt node
         for (const auto& Var : RetPSet.vars()) {
             if (Var.isTemporary()) {
-                RetPSet = PSet::invalid(InvalidationReason::TemporaryLeftScope(R->getSourceRange(), CurrentBlock));
+                RetPSet = PSet::invalid(InvalidationReason::temporaryLeftScope(R->getSourceRange(), CurrentBlock));
                 break;
             }
 
@@ -539,7 +540,7 @@ public:
                 if (VD->hasLocalStorage()
                     && (!Var.isDeref() || classifyTypeCategory(VD->getType()) == TypeCategory::Owner)) {
                     RetPSet
-                        = PSet::invalid(InvalidationReason::PointeeLeftScope(R->getSourceRange(), CurrentBlock, VD));
+                        = PSet::invalid(InvalidationReason::pointeeLeftScope(R->getSourceRange(), CurrentBlock, VD));
                     break;
                 }
             }
@@ -698,7 +699,6 @@ public:
             }
         }
 
-        // NOLINTNEXTLINE
         std::erase_if(PMap, [&V](const auto& Item) {
             const Variable& Var = Item.first;
             return V != Var && Var.isField() && V.isParent(Var);
@@ -707,7 +707,6 @@ public:
 
     void removePSetIf(llvm::function_ref<bool(const Variable&, const PSet&)> Fn) override
     {
-        // NOLINTNEXTLINE
         std::erase_if(PMap, [Fn](const auto& X) { return Fn(X.first, X.second); });
     }
 
@@ -718,10 +717,9 @@ public:
     // MaterializeTemporaryExpr without extending decl.
     void eraseVariable(const VarDecl* VD, SourceRange Range)
     {
-        const InvalidationReason Reason = VD ? InvalidationReason::PointeeLeftScope(Range, CurrentBlock, VD)
-                                             : InvalidationReason::TemporaryLeftScope(Range, CurrentBlock);
+        const InvalidationReason Reason = VD ? InvalidationReason::pointeeLeftScope(Range, CurrentBlock, VD)
+                                             : InvalidationReason::temporaryLeftScope(Range, CurrentBlock);
         if (VD) {
-            // NOLINTNEXTLINE(misc-include-cleaner): false positive
             std::erase_if(PMap, [VD](const auto& E) { return Variable(VD).isParent(E.first); });
             invalidateVar(VD, Reason);
         }
@@ -865,7 +863,7 @@ public:
                 // Never treat local statics as uninitialized.
                 PS = PSet::globalVar(/*TODO*/ false);
             } else {
-                PS = PSet::invalid(InvalidationReason::NotInitialized(VD->getLocation(), CurrentBlock));
+                PS = PSet::invalid(InvalidationReason::notInitialized(VD->getLocation(), CurrentBlock));
             }
             setPSet(PSet::singleton(VD), PS, Range);
             break;
@@ -893,7 +891,7 @@ public:
                     setPSet(PSet::singleton(Member), getPSet(IL->getInit(FD->getFieldIndex())), VD->getSourceRange());
                 } else if (isNullableType(FD->getType())) {
                     setPSet(PSet::singleton(Member),
-                        PSet::invalid(InvalidationReason::NotInitialized(VD->getLocation(), CurrentBlock)),
+                        PSet::invalid(InvalidationReason::notInitialized(VD->getLocation(), CurrentBlock)),
                         VD->getSourceRange());
                 } else {
                     setPSet(PSet::singleton(Member), PSet::singleton(Member), VD->getSourceRange());
@@ -1098,7 +1096,7 @@ PSet PSetsBuilder::getPSet(const Variable& P) const
     if (const auto* VD = P.asVarDecl()) {
         // Handle goto_forward_over_decl() in test attr-pset.cpp
         if (!isa<ParmVarDecl>(VD)) {
-            return PSet::invalid(InvalidationReason::NotInitialized(VD->getLocation(), CurrentBlock));
+            return PSet::invalid(InvalidationReason::notInitialized(VD->getLocation(), CurrentBlock));
         }
     }
 
@@ -1570,7 +1568,7 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
     }
 } // namespace lifetime
 
-bool VisitBlock(const FunctionDecl* FD, PSetsMap& PMap, std::optional<PSetsMap>& FalseBranchExitPMap,
+bool visitBlock(const FunctionDecl* FD, PSetsMap& PMap, std::optional<PSetsMap>& FalseBranchExitPMap,
     std::map<const Expr*, PSet>& PSetsOfExpr, std::map<const Expr*, PSet>& RefersTo, const CFGBlock& B,
     LifetimeReporterBase& Reporter, ASTContext& ASTCtxt, IsConvertibleTy IsConvertible)
 {

@@ -411,7 +411,7 @@ void LifetimeContext::traverseBlocks()
         ++IterationCount;
         BC.ExitPMap = BC.EntryPMap;
         Visited[Current->getBlockID()] = true;
-        if (!VisitBlock(FuncDecl, BC.ExitPMap, BC.FalseBranchExitPMap, PSetsOfExpr, RefersTo, *Current, Reporter,
+        if (!visitBlock(FuncDecl, BC.ExitPMap, BC.FalseBranchExitPMap, PSetsOfExpr, RefersTo, *Current, Reporter,
                 ASTCtxt, IsConvertible)) {
             // An unsupported AST node (such as reinterpret_cast) disabled
             // the analysis.

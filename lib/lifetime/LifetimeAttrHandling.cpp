@@ -571,7 +571,7 @@ void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTConte
                     PS.addNullReason(NullReason::parameterNull(Range, Block));
                 }
                 if (PS.containsInvalid()) {
-                    PS = PSet::invalid(InvalidationReason::NotInitialized(Range, Block));
+                    PS = PSet::invalid(InvalidationReason::notInitialized(Range, Block));
                 }
                 if (IgnoreNull) {
                     PS.removeNull();

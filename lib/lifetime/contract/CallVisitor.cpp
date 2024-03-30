@@ -450,8 +450,8 @@ void CallVisitor::invalidateVarOnNoConstUse(const Expr* Arg, const TypeClassific
 
     const PSet ArgPS = Builder.getPSet(Arg);
     for (const Variable& V : ArgPS.vars()) {
-        const auto Reason = IsMovedFrom ? InvalidationReason::Moved(Arg->getSourceRange(), CurrentBlock)
-                                        : InvalidationReason::Modified(Arg->getSourceRange(), CurrentBlock);
+        const auto Reason = IsMovedFrom ? InvalidationReason::moved(Arg->getSourceRange(), CurrentBlock)
+                                        : InvalidationReason::modified(Arg->getSourceRange(), CurrentBlock);
 
         // p2.3.5 Move
         // When an Owner && parameter is invoked so that the && has a pset of {x'}, the && is bound to x and x’s
