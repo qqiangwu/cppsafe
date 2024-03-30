@@ -10,6 +10,19 @@ struct [[gsl::Pointer(T)]] Ptr {
     const T& get() const;
 };
 
+template <class A, class B>
+struct Pair {
+    A first;
+    B second;
+};
+
+namespace std {
+
+template <class T>
+__remove_reference_t(T)&& move(T&& t);
+
+}
+
 template <class T>
 void __lifetime_pset(T&&);
 

@@ -43,13 +43,13 @@ void foo(Value** v)
     *v = new Value{};
 }
 
-struct Pair {
+struct MyPair {
     int x;
     Owner<int> y;
 };
 
 CPPSAFE_POST("return", "*p")
-const Owner<int>& get(const Owner<Pair>& p)
+const Owner<int>& get(const Owner<MyPair>& p)
 {
     return p.get().y;
 };

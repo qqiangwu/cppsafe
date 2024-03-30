@@ -1,5 +1,7 @@
 // ARGS: -Wlifetime-container-move -Wlifetime-move
 
+#include "common.h"
+
 namespace std {
 
 template <class T>
@@ -20,15 +22,9 @@ public:
     ~vector();
 };
 
-template <class T>
-__remove_reference_t(T)&& move(T&& t);
-
 }
 
 struct Dummy {};
-
-template <class T>
-void __lifetime_pset(T&&);
 
 void test_loop()
 {
