@@ -88,3 +88,11 @@ void foo3(int* p = nullptr, int* a = 0)
     auto m3 = [x]{};
     __lifetime_pset(x);  // expected-warning {{pset(x) = ((null), *p)}}
 }
+
+int capture_invalid()
+{
+    int* n;  // expected-note {{it was never initialized here}}
+    return [n]{  // expected-warning {{passing a dangling pointer as argument}}
+        return *n;
+    }();
+}
