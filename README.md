@@ -378,6 +378,30 @@ using A [[clang::annotate("gsl::lifetime_nonnull")]]= int*;
 typedef int* B [[clang::annotate("gsl::lifetime_nonnull")]];
 ```
 
+## NEW `gsl::lifetime_capture`
+Used in pointer methods.
+
+```cpp
+struct [[gsl::Pointer]] Ptr
+{
+    [[clang::annotate("gsl::lifetime_capture", "p")]]
+    void foo(int* p)
+};
+
+void foo()
+{
+    Ptr p;
+
+    int a;
+    int b;
+
+    p.foo(&a);
+    p.foo(&b);
+
+    // pset(p) == {global, a, b}
+}
+```
+
 ## `clang::reinitializes`
 This is to reset a moved-from object.
 

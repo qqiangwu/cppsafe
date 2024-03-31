@@ -17,4 +17,6 @@ SourceRange adjustParamContracts(StringRef Kind, const FunctionDecl* FD, const P
 SourceRange adjustContracts(
     StringRef Kind, const FunctionDecl* FD, AttrPointsToMap& Fill, const AttrPointsToMap& Lookup);
 
+SourceRange adjustCaptureContracts(const FunctionDecl* FD, AttrPointsToMap& Fill, const AttrPointsToMap& Lookup);
+
 }

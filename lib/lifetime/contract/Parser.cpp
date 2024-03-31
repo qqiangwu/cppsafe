@@ -1,6 +1,8 @@
 #include "cppsafe/lifetime/contract/Parser.h"
 
+#include "cppsafe/lifetime/Lifetime.h"
 #include "cppsafe/lifetime/LifetimeAttrData.h"
+#include "cppsafe/lifetime/LifetimeTypeCategory.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
 
 #include <clang/AST/Attr.h>
@@ -15,6 +17,7 @@
 #include <llvm/ADT/iterator_range.h>
 
 #include <optional>
+#include <utility>
 
 namespace clang::lifetime {
 
@@ -189,6 +192,42 @@ SourceRange adjustContracts(
         }
 
         Fill[*V->Vars.begin()] = PS;
+    }
+
+    return {};
+}
+
+SourceRange adjustCaptureContracts(const FunctionDecl* FD, AttrPointsToMap& Fill, const AttrPointsToMap& Lookup)
+{
+    bool Seen = false;
+    for (const auto* Attr : getAnnotatedWith(FD, LifetimeCapture)) {
+        if (Attr->args_size() == 0 || std::exchange(Seen, true)) {
+            return Attr->getRange();
+        }
+
+        const auto* MD = dyn_cast<CXXMethodDecl>(FD);
+        if (!MD || !MD->isInstance()) {
+            return Attr->getRange();
+        }
+
+        const auto* RD = MD->getParent();
+        if (!classifyTypeCategory(RD->getTypeForDecl()).isPointer()) {
+            return Attr->getRange();
+        }
+        const auto DerefThis = ContractVariable(RD).derefCopy();
+
+        ContractPSet PS = DerefThis.derefCopy();
+        for (const auto* E : Attr->args()) {
+            std::optional<ContractPSet> DependsOn = resolveContractVar(FD, E, &Lookup);
+            if (!DependsOn) {
+                return E->getSourceRange();
+            }
+
+            DependsOn->ContainsNull = false;
+            PS.merge(*DependsOn);
+        }
+
+        Fill[DerefThis] = PS;
     }
 
     return {};
