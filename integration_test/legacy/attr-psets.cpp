@@ -334,7 +334,7 @@ void address_of_global() {
 
 void class_type_pointer() {
   my_pointer p;       // default initialization
-  __lifetime_pset(p); // expected-warning {{pset(p) = ((unknown))}}
+  __lifetime_pset(p); // expected-warning {{pset(p) = ((global))}}
 }
 
 void ref_leaves_scope() {
@@ -1137,7 +1137,7 @@ void ownerPointsToTemplateType() {
 
 void string_view_ctors(gsl::not_null<const char *>c) {
   std::string_view sv;
-  __lifetime_pset(sv); // expected-warning {{pset(sv) = ((unknown))}}
+  __lifetime_pset(sv); // expected-warning {{pset(sv) = ((global))}}
   std::string_view sv2(c);
   __lifetime_pset(sv2); // expected-warning {{pset(sv2) = (*c)}}
   char local;

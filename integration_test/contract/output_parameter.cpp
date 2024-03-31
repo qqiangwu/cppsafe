@@ -1,11 +1,11 @@
-struct [[gsl::Pointer(int)]] Ptr1 {
-    Ptr1();
+struct [[gsl::Pointer(int)]] NonNullPtr {
+    NonNullPtr();
 
     operator bool();
 };
 
-struct [[gsl::Pointer(int)]] Ptr2 {
-    Ptr2();
+struct [[gsl::Pointer(int)]] NullablePtr {
+    NullablePtr();
 };
 
 template <class T>
@@ -22,7 +22,7 @@ void foo1(int** p)
     // expected-warning@-3 {{pset(Post(*p)) = ((global))}}
 }
 
-void foo3(Ptr2* p)
+void foo3(NullablePtr* p)
 {
     __lifetime_contracts(&foo3);
     // expected-warning@-1 {{pset(Pre(p)) = ((null), *p)}}
@@ -32,15 +32,15 @@ void foo3(Ptr2* p)
 
 void test_default_contructor()
 {
-    Ptr1 p1;
-    Ptr2 p2;
+    NonNullPtr p1;
+    NullablePtr p2;
 
     __lifetime_pset(p1);  // expected-warning {{pset(p1) = ((null))}}
-    __lifetime_pset(p2);  // expected-warning {{pset(p2) = ((unknown))}}
+    __lifetime_pset(p2);  // expected-warning {{pset(p2) = ((global))}}
 }
 
-void test_in_out1(Ptr2* input [[clang::annotate("gsl::lifetime_in")]], Ptr2* output);
-void test_in_out2(Ptr2& input [[clang::annotate("gsl::lifetime_in")]], Ptr2& output);
+void test_in_out1(NullablePtr* input [[clang::annotate("gsl::lifetime_in")]], NullablePtr* output);
+void test_in_out2(NullablePtr& input [[clang::annotate("gsl::lifetime_in")]], NullablePtr& output);
 
 void test_in_out()
 {

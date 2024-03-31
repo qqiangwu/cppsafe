@@ -320,21 +320,30 @@ public:
         }
     }
 
+    // T{};
+    // T t = {};
     void VisitInitListExpr(const InitListExpr* I)
     {
         I = !I->isSemanticForm() ? I->getSemanticForm() : I;
 
+        // [[types.pointer.init.assign]]
         if (isPointer(I)) {
-            if (I->getNumInits() == 0) {
-                setPSet(I, PSet::null(NullReason::defaultConstructed(I->getSourceRange(), CurrentBlock)));
-                return;
-            }
             // TODO: Instead of assuming that the pset comes from the first argument
             // use the same logic we have in call modelling.
             if (I->getNumInits() == 1) {
                 setPSet(I, getPSet(I->getInit(0)));
                 return;
             }
+
+            // HACK
+            // non-null non-record type is just for parameter contract inference
+            if (isNullableType(I->getType()) || !I->getType()->isRecordType()) {
+                setPSet(I, PSet::null(NullReason::defaultConstructed(I->getSourceRange(), CurrentBlock)));
+            } else {
+                // non-null pointer record type is defaulted to {global}
+                setPSet(I, PSet::globalVar());
+            }
+            return;
         }
         setPSet(I, {});
     }
@@ -565,10 +574,13 @@ public:
             return;
         }
 
+        // [[types.pointer.init.default]]
         if (E->getNumArgs() == 0) {
             PSet P;
             if (isNullableType(E->getType())) {
                 P = PSet::null(NullReason::defaultConstructed(E->getSourceRange(), CurrentBlock));
+            } else {
+                P = PSet::globalVar(false);
             }
             setPSet(E, P);
             return;
@@ -832,9 +844,10 @@ public:
             if (AddReason) {
                 RHS.addNullReason(NullReason::assigned(Range, CurrentBlock));
             }
+
+            // [[types.pointer.init.assign]]
             if (!isNullableType(LHS)) {
                 Reporter.warn(WarnType::AssignNull, Range, !RHS.isNull());
-                RHS = PSet {};
             }
         }
         return RHS;
@@ -945,36 +958,40 @@ public:
                 PS.merge(PSet::singleton(Variable::thisPointer(RD), 1));
                 continue;
             }
-            if (V.capturesVariable()) {
-                const auto* VD = V.getCapturedVar()->getPotentiallyDecomposedVarDecl();
-                if (!VD) {
-                    continue;
+            if (!V.capturesVariable()) {
+                continue;
+            }
+
+            const auto* VD = V.getCapturedVar()->getPotentiallyDecomposedVarDecl();
+            if (!VD) {
+                continue;
+            }
+
+            auto GetVarDeclPset = [this](const VarDecl* VD) {
+                if (const auto* I = VD->getInit(); I && VD->isInitCapture()) {
+                    return getPSet(I);
                 }
+                return getPSet(VD);
+            };
 
-                auto GetVarDeclPset = [this](const VarDecl* VD) {
-                    if (const auto* I = VD->getInit(); I && VD->isInitCapture()) {
-                        return getPSet(I);
-                    }
-                    return getPSet(VD);
-                };
-
-                if (V.getCaptureKind() == LCK_ByRef) {
-                    if (VD->getType()->isReferenceType()) {
-                        PS.merge(GetVarDeclPset(VD));
-                    } else {
-                        PS.merge(PSet::singleton(VD));
-                    }
-                    continue;
-                }
-
-                if (classifyTypeCategory(VD->getType()).isPointer()) {
+            if (V.getCaptureKind() == LCK_ByRef) {
+                if (VD->getType()->isReferenceType()) {
                     PS.merge(GetVarDeclPset(VD));
+                } else {
+                    PS.merge(PSet::singleton(VD));
                 }
+                continue;
+            }
+
+            if (classifyTypeCategory(VD->getType()).isPointer()) {
+                PS.merge(GetVarDeclPset(VD));
             }
         }
 
         if (PS.isUnknown()) {
             PS.addGlobal();
+        } else if (PS.containsNull()) {
+            PS.removeNull();
         }
 
         setPSet(L, PS);
@@ -1212,7 +1229,7 @@ bool PSetsBuilder::checkPSetValidity(const PSet& PS, SourceRange Range) const
         return false;
     }
 
-    if (Reporter.getOptions().LifetimeNull && PS.containsNull()) {
+    if (PS.containsNull() && (Reporter.getOptions().LifetimeNull || PS.isNull())) {
         if (PS.shouldBeFilteredBasedOnNotes(Reporter) && !PS.isNull()) {
             return false;
         }

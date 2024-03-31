@@ -158,9 +158,9 @@ class Reporter : public LifetimeReporterBase {
         return false;
     }
 
-    bool isNullSuppressed(WarnType WT) const
+    bool isNullSuppressed(WarnType WT, bool Possibly) const
     {
-        if (Options.LifetimeNull) {
+        if (Options.LifetimeNull || !Possibly) {
             return false;
         }
 
@@ -264,7 +264,7 @@ public:
     {
         assert(T == WarnType::Dangling || T == WarnType::Null);
 
-        if (isSuppressed(Range) || isNullSuppressed(T)) {
+        if (isSuppressed(Range) || isNullSuppressed(T, Possibly)) {
             IgnoreCurrentWarning = true;
             return;
         }
@@ -278,7 +278,7 @@ public:
     {
         assert((unsigned)T < sizeof(Warnings) / sizeof(Warnings[0]));
 
-        if (isSuppressed(Range) || isNullSuppressed(T)) {
+        if (isSuppressed(Range) || isNullSuppressed(T, Possibly)) {
             IgnoreCurrentWarning = true;
             return;
         }

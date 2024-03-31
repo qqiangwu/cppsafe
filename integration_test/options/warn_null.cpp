@@ -6,6 +6,8 @@ using not_null = T;
 void foo1()
 {
     not_null<int*> p = nullptr;  // expected-warning {{assigning a null pointer to a non-null object}}
+
+    p = nullptr;  // expected-warning {{assigning a null pointer to a non-null object}}
 }
 
 void foo2(bool c)

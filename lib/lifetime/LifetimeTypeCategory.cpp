@@ -455,8 +455,7 @@ bool isNullableType(QualType QT)
     }
     if (const auto* RD = Inner->getAsCXXRecordDecl()) {
         if (RD->isLambda()) {
-            // allow capture pointers which can be nullptr
-            return true;
+            return false;
         }
         if (!classifyTypeCategory(QT).isPointer()) {
             return false;

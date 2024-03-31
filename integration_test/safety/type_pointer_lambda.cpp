@@ -31,13 +31,13 @@ void test_lambda(int p, double& d, int* q)
     __lifetime_pset([]{});  // expected-warning {{pset([]{}) = ((global))}}
     __lifetime_type_category_arg([]{});  // expected-warning {{lifetime type category is Pointer with pointee void}}
 
-    __lifetime_pset([&p, &d, q, this]{});  // expected-warning {{pset([&p, &d, q, this]{}) = ((null), *d, *q, *this, p)}}
+    __lifetime_pset([&p, &d, q, this]{});  // expected-warning {{pset([&p, &d, q, this]{}) = (*d, *q, *this, p)}}
     __lifetime_type_category_arg([&p, &d, q, this]{});
     // expected-warning@-1 {{lifetime type category is Pointer with pointee void}}
 
     int z;
     auto fn = [&z, &p, &d, q, this]{};
-    __lifetime_pset(fn);  // expected-warning {{pset(fn) = ((null), *d, *q, *this, p, z)}}
+    __lifetime_pset(fn);  // expected-warning {{pset(fn) = (*d, *q, *this, p, z)}}
     __lifetime_type_category_arg(fn);
     // expected-warning@-1 {{lifetime type category is Pointer with pointee void}}
 }
@@ -78,8 +78,8 @@ void foo3(int* p = nullptr, int* a = 0)
     auto m1 = [p]{};
     auto m2 = [a]{};
 
-    __lifetime_pset(m1);  // expected-warning {{pset(m1) = ((null), *p)}}
-    __lifetime_pset(m2);  // expected-warning {{pset(m2) = ((null), *a)}}
+    __lifetime_pset(m1);  // expected-warning {{pset(m1) = (*p)}}
+    __lifetime_pset(m2);  // expected-warning {{pset(m2) = (*a)}}
 
     __lifetime_pset(p);  // expected-warning {{pset(p) = ((null), *p)}}
     __lifetime_pset(a);  // expected-warning {{pset(a) = ((null), *a)}}
