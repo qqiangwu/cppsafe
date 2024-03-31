@@ -1,7 +1,9 @@
+#include "../feature/common.h"
+
 struct [[gsl::Pointer]] ScopedExecutor {
     template <class Fn>
-    [[clang::annotate("gsl::lifetime_post", "*this", "*fn")]]
-    void Submit(Fn&& fn) {}  // pset(*this) += pset(*fn);
+    CPPSAFE_CAPTURE("*fn")
+    void Submit(Fn&& fn) {}
 
     [[clang::annotate("gsl::lifetime_post", "*this", ":global")]]
     void Wait();  // pset(*this) = {global}
@@ -13,6 +15,12 @@ struct [[gsl::Pointer]] ScopedExecutor {
 void foo(int n)
 {
     ScopedExecutor ex{};
+
+    ex.Submit([&n]{});
+
+    int q;
+    ex.Submit([&q]{});
+    __lifetime_pset(ex);  // expected-warning {{pset(ex) = ((global), n, q)}}
 
     for (int i = 0; i < n; ++i) {
         ex.Submit([&i]{});

@@ -321,7 +321,12 @@ private:
         }
 
         // Process user defined postconditions.
-        const auto Range = adjustContracts(LifetimePost, FD, ContractAttr->PostPSets, ContractAttr->PrePSets);
+        auto Range = adjustContracts(LifetimePost, FD, ContractAttr->PostPSets, ContractAttr->PrePSets);
+        if (Range.isValid()) {
+            Reporter.warnUnsupportedExpr(Range);
+        }
+
+        Range = adjustCaptureContracts(FD, ContractAttr->PostPSets, ContractAttr->PrePSets);
         if (Range.isValid()) {
             Reporter.warnUnsupportedExpr(Range);
         }

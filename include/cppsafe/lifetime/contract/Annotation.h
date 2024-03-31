@@ -10,6 +10,7 @@ namespace clang::lifetime {
 
 inline constexpr StringRef LifetimePre = "gsl::lifetime_pre";
 inline constexpr StringRef LifetimePost = "gsl::lifetime_post";
+inline constexpr StringRef LifetimeCapture = "gsl::lifetime_capture";
 
 inline bool isAnnotatedWith(const Decl* D, StringRef Category)
 {

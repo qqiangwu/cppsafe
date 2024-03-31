@@ -45,4 +45,6 @@ void __lifetime_contracts(T&&) {};
 
 #define CPPSAFE_POST(...) [[clang::annotate("gsl::lifetime_post", __VA_ARGS__)]]
 
+#define CPPSAFE_CAPTURE(...) [[clang::annotate("gsl::lifetime_capture", __VA_ARGS__)]]
+
 #define CPPSAFE_NONNULL [[clang::annotate("gsl::lifetime_nonnull")]]
