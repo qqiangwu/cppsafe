@@ -42,7 +42,7 @@ void test_pre()
     // expected-warning@-1 {{pset(Pre(p)) = ((global))}}
     // expected-warning@-2 {{pset(Pre(q)) = ((null), *q)}}
     // expected-warning@-3 {{pset(Pre(*q)) = ((global))}}
-    // expected-warning@-4 {{pset(Post(*q)) = ((global))}}
+    // expected-warning@-4 {{pset(Post(*q)) = ((global), (null))}}
 }
 
 struct Out
@@ -73,10 +73,10 @@ void test_post()
 
     __lifetime_contracts(&Out::GetInner);
     // expected-warning@-1 {{pset(Pre(this)) = (*this)}}
-    // expected-warning@-2 {{pset(Post((return value))) = ((global))}}
+    // expected-warning@-2 {{pset(Post((return value))) = ((global), (null))}}
 
     __lifetime_contracts(&Out::Get2);
-    // expected-warning@-1 {{pset(Post((return value))) = ((global))}}
+    // expected-warning@-1 {{pset(Post((return value))) = ((global), (null))}}
 
     __lifetime_contracts(&Bar);
     // expected-warning@-1 {{pset(Pre(p)) = ((null), *p)}}

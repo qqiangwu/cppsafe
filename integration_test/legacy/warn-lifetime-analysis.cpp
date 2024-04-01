@@ -348,7 +348,7 @@ std::initializer_list<int> dangling_initializer_list() {
 }
 
 int* static_or_null() {
-  return nullptr; // expected-warning {{returning a null pointer where a non-null pointer is expected}}
+  return nullptr;
 }
 
 // Examples from paper P0936 by Richard Smith and Nicolai Josuttis

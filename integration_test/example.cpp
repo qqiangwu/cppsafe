@@ -443,10 +443,10 @@ int* example_2_5_6_7_a(int* pi) {
 }
 
 // https://godbolt.org/z/-exrN7
-int* f();					// pset(ret) = {static}
+int* f();					// pset(ret) = {static, null}
 void example_2_5_6_8() {
-    int* p = f(); 			// pset(p) = {static}
-    *p = 42; 				// ok
+    int* p = f();  // expected-note {{assigned here}}
+    *p = 42;  // expected-warning {{dereferencing a possibly null pointer}}
 }
 
 // https://godbolt.org/z/4G-8H-

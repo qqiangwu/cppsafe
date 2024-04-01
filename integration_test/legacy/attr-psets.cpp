@@ -725,7 +725,7 @@ void function_call2() {
   __lifetime_pset(pp); // expected-warning {{pset(pp) = (p)}}
   // The deref location of the argument is an output only,
   // the the function has no input with matching type.
-  __lifetime_pset(p); // expected-warning {{pset(p) = ((global))}}
+  __lifetime_pset(p); // expected-warning {{pset(p) = ((global), (null))}}
 }
 
 void function_call3() {
@@ -736,7 +736,7 @@ void function_call3() {
   __lifetime_pset(p); // expected-warning {{pset(p) = (i)}}
   f(p);
   // Similar to the f in function_call2 above.
-  __lifetime_pset(p); // expected-warning {{pset(p) = ((global))}}
+  __lifetime_pset(p); // expected-warning {{pset(p) = ((global), (null))}}
 }
 
 void function_call4() {

@@ -27,11 +27,11 @@ void test2(bool b)
     int m = 0;
     int* p = &m;
     if (b) {
-        p = get();
-        __lifetime_pset(p);  // expected-warning {{((global))}}
+        p = get();  // expected-note {{assigned here}}
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((global), (null))}}
     }
 
-    access(*p);
+    access(*p);  // expected-warning {{dereferencing a possibly null pointer}}
 }
 
 void test3(bool b)
@@ -53,7 +53,7 @@ void test4(bool b)
     int* p = &m;
     if (b) {
         out(get(), &p);
-        __lifetime_pset(p);  // expected-warning {{((global))}}
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((global), (null))}}
     }
 }
 

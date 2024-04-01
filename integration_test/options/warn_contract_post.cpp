@@ -15,7 +15,7 @@ struct [[gsl::Pointer(int)]] Ptr
 
     double* get()
     {
-        return m;  // expected-warning {{returning a pointer with points-to set (*(*this).m) where points-to set ((global)) is expected}}
+        return m;  // expected-warning {{returning a pointer with points-to set (*(*this).m) where points-to set ((global), (null)) is expected}}
     }
 };
 
