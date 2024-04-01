@@ -172,6 +172,8 @@ public:
 
     void VisitCXXDeleteExpr(const CXXDeleteExpr* DE)
     {
+        Reporter.warnNakedNewDelete(DE->getSourceRange());
+
         if (hasPSet(DE->getArgument())) {
             const PSet PS = getPSet(DE->getArgument());
             for (const auto& Var : PS.vars()) {
@@ -363,6 +365,10 @@ public:
         switch (E->getCastKind()) {
         case CK_BitCast:
         case CK_LValueBitCast:
+            // Those casts are forbidden by the type profile
+            Reporter.warnUnsafeCast(E->getSourceRange());
+            setPSet(E, getPSet(E->getSubExpr()));
+            return;
         case CK_IntegralToPointer:
             // Those casts are forbidden by the type profile
             Reporter.warnUnsafeCast(E->getSourceRange());
@@ -516,7 +522,13 @@ public:
         }
 
         if (hasPSet(UO)) {
-            setPSet(UO, getPSet(UO->getSubExpr()));
+            auto P = getPSet(UO->getSubExpr());
+
+            if (!UO->isLValue() && isPointer(UO) && (llvm::is_contained({ UO_PostDec, UO_PostInc }, UO->getOpcode()))) {
+                P = derefPSet(P);
+            }
+
+            setPSet(UO, P);
         }
     }
 
