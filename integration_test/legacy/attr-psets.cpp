@@ -1102,7 +1102,7 @@ void kill_materialized_temporary() {
 void delete_pointee(int *p) {
   int *q = p;
   __lifetime_pset(q); // expected-warning {{((null), *p)}}
-  delete q;
+  delete q;  // expected-warning {{naked new-deletes disables lifetime analysis}}
   __lifetime_pset(q); // expected-warning {{((invalid))}}
   __lifetime_pset(p); // expected-warning {{((invalid))}}
 }
@@ -1673,7 +1673,7 @@ struct Node {
       __lifetime_pset(next_temp); // expected-warning {{(*(*this).next)}}
                                   // expected-warning@-1 {{((global), *(*this).next)}}
                                   // expected-warning@-2 {{((global), *(*this).next)}}
-      delete cur;
+      delete cur;  // expected-warning {{naked new-deletes disables lifetime analysis}}
       __lifetime_pset(next_temp); // expected-warning {{(*(*this).next)}}
                                   // expected-warning@-1 {{((global), *(*this).next)}}
                                   // expected-warning@-2 {{((global), *(*this).next)}}
