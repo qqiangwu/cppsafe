@@ -17,6 +17,7 @@
 #include <clang/AST/Attrs.inc>
 #include <clang/AST/Decl.h>
 #include <clang/AST/Expr.h>
+#include <clang/AST/Stmt.h>
 #include <clang/Analysis/AnalysisDeclContext.h>
 #include <clang/Analysis/CFG.h>
 #include <clang/Analysis/FlowSensitive/DataflowWorklist.h>
@@ -399,9 +400,10 @@ void LifetimeContext::traverseBlocks()
 
         // Compute entry psets of this block by merging exit psets of all
         // reachable predecessors.
+        const bool VisitedBefore = Visited[Current->getBlockID()];
         auto OrigEntryPMap = BC.EntryPMap;
         computeEntryPSets(*Current);
-        if (Visited[Current->getBlockID()] && BC.EntryPMap == OrigEntryPMap) {
+        if (VisitedBefore && BC.EntryPMap == OrigEntryPMap) {
             // Has been computed at least once and nothing changed; no need to
             // recompute.
             continue;
@@ -411,12 +413,25 @@ void LifetimeContext::traverseBlocks()
         ++IterationCount;
         BC.ExitPMap = BC.EntryPMap;
         Visited[Current->getBlockID()] = true;
-        if (!visitBlock(FuncDecl, BC.ExitPMap, BC.FalseBranchExitPMap, PSetsOfExpr, RefersTo, *Current, Reporter,
-                ASTCtxt, IsConvertible)) {
-            // An unsupported AST node (such as reinterpret_cast) disabled
-            // the analysis.
-            break;
+        visitBlock(FuncDecl, BC.ExitPMap, BC.FalseBranchExitPMap, PSetsOfExpr, RefersTo, *Current, Reporter, ASTCtxt,
+            IsConvertible);
+
+        if (const auto* T = Current->getTerminatorStmt()) {
+            // HACK
+            // for-statement will visit false block, which causes the false block will be visited twice
+            //
+            // <code>
+            // int* p = nullptr;
+            // for (...) p = new int{};
+            // __lifetime_pset(p);  // this block will be runned twice
+            // </code>
+            if (!VisitedBefore && isa<ForStmt>(T) && !Current->succ_empty()) {
+                CPPSAFE_ASSERT(Current->succ_size() == 2);
+                WorkList.enqueueBlock(*Current->succ_begin());
+                continue;
+            }
         }
+
         WorkList.enqueueSuccessors(Current);
     }
 
