@@ -304,7 +304,6 @@ private:
         return R;
     }
 
-    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
     void fillPostConditions(LifetimeContractAttr* ContractAttr, ParamDerivedLocations& Locations) const
     {
         const auto RetTC = classifyTypeCategory(FD->getReturnType());

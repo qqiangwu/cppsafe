@@ -525,7 +525,7 @@ void for_stmt() {
                         // expected-warning@-1 {{pset(p) = (initial, j)}}
     p = &j;
   }
-  __lifetime_pset(p); // expected-warning {{pset(p) = (initial)}}
+  __lifetime_pset(p); //
                       // expected-warning@-1 {{pset(p) = (initial, j)}}
 }
 
