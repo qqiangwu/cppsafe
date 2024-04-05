@@ -579,6 +579,11 @@ void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTConte
                     PS = PSet::invalid(InvalidationReason::notInitialized(Range, Block));
                 }
                 if (IgnoreNull) {
+                    // If -Wlifetime-null is enabled, all possible-null derefence will be flags
+                    // We use -Wno-lifetime-call-null to exclude possible-null caused by parameters.
+                    // When -Wno-lifetime-call-null is ON, suppose parameters are always non-null
+                    //
+                    // IgnoreNull will only be true when VisitFunction and -Wno-lifetime-call-null is ON
                     PS.removeNull();
                 }
             }

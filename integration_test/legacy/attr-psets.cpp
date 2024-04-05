@@ -469,7 +469,7 @@ void if_stmt(const int *p, const char *q,
   __lifetime_pset(p); // expected-warning {{(i)}}
   if (p) {
   }
-  __lifetime_pset(p); // expected-warning {{(i)}}
+  __lifetime_pset(p); // expected-warning {{pset(p) = ((null), i)}}
 }
 
 void implicit_else() {

@@ -90,6 +90,7 @@ public:
     virtual void warnPointerArithmetic(SourceRange Range) = 0;
     virtual void warnUnsafeCast(SourceRange Range) = 0;
     virtual void warnNakedNewDelete(SourceRange Range) = 0;
+    virtual void warnRedundantWorkflow(SourceRange Range) = 0;
 
     virtual void warnUnsupportedExpr(SourceRange Range) = 0;
     virtual void warnNonStaticThrow(SourceRange Range, StringRef ThrownPset) = 0;

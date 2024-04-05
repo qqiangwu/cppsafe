@@ -53,6 +53,7 @@ enum LifetimeDiag {
     warn_lifetime_unsafe_cast,
     warn_lifetime_naked_new_delete,
 
+    warn_lifetime_redundant_workflow,
     warn_unsupported_expression,
 
     warn_lifetime_category,
@@ -202,6 +203,8 @@ public:
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "unsafe cast disables lifetime analysis");
         WarningIds[LifetimeDiag::warn_lifetime_naked_new_delete]
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "naked new-deletes disables lifetime analysis");
+        WarningIds[LifetimeDiag::warn_lifetime_redundant_workflow]
+            = E.getCustomDiagID(DiagnosticsEngine::Warning, "redundant control flow, never reachable");
         WarningIds[LifetimeDiag::warn_unsupported_expression]
             = E.getCustomDiagID(DiagnosticsEngine::Warning, "this pre/postcondition is not supported");
         WarningIds[LifetimeDiag::warn_lifetime_category]
@@ -359,6 +362,18 @@ public:
 
         if (enableIfNew(Range)) {
             S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_lifetime_naked_new_delete]);
+        }
+    }
+
+    void warnRedundantWorkflow(SourceRange Range) override
+    {
+        if (isSuppressed(Range)) {
+            IgnoreCurrentWarning = true;
+            return;
+        }
+
+        if (enableIfNew(Range)) {
+            S.Diag(Range.getBegin(), WarningIds[LifetimeDiag::warn_lifetime_redundant_workflow]);
         }
     }
 
