@@ -431,6 +431,11 @@ public:
         return { Range, Block, NoteType::NullConstant };
     }
 
+    static NullReason dynamicCastToDerived(SourceRange Range, const CFGBlock* Block)
+    {
+        return { Range, Block, NoteType::DynamicCastToDerived };
+    }
+
     void emitNote(LifetimeReporterBase& Reporter) const
     {
         if (Reason == NoteType::NullConstant) {

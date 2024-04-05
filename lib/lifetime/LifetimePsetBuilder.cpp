@@ -114,6 +114,7 @@ public:
                 case CK_IntegralToPointer:
                 case CK_NullToPointer:
                 case CK_ArrayToPointerDecay:
+                case CK_Dynamic:
                     return E;
                 case CK_LValueToRValue:
                     if (!IgnoreLValueToRValue) {
@@ -176,6 +177,13 @@ public:
 
         if (hasPSet(DE->getArgument())) {
             const PSet PS = getPSet(DE->getArgument());
+            auto PSWithoutNull = PS;
+            PSWithoutNull.removeNull();
+            if (!checkPSetValidity(PSWithoutNull, DE->getSourceRange())) {
+                return;
+            }
+
+            // TODO: add strict mode check
             for (const auto& Var : PS.vars()) {
                 // TODO: diagnose if we are deleting the buffer of on owner?
                 invalidateVar(Var, InvalidationReason::deleted(DE->getSourceRange(), CurrentBlock));
@@ -369,6 +377,18 @@ public:
             Reporter.warnUnsafeCast(E->getSourceRange());
             setPSet(E, getPSet(E->getSubExpr()));
             return;
+        case CK_Dynamic: {
+            auto P = getPSet(E->getSubExpr());
+            if (E->getType()->isPointerType()) {
+                const auto* ToType = E->getType()->getPointeeCXXRecordDecl();
+                const auto* FromType = E->getSubExpr()->getType()->getPointeeCXXRecordDecl();
+                if (ToType && FromType && ToType->isDerivedFrom(FromType)) {
+                    P.addNull(NullReason::dynamicCastToDerived(E->getSourceRange(), CurrentBlock));
+                }
+            }
+            setPSet(E, P);
+            return;
+        }
         case CK_IntegralToPointer:
             // Those casts are forbidden by the type profile
             Reporter.warnUnsafeCast(E->getSourceRange());

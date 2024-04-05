@@ -2,6 +2,9 @@ template <class T>
 struct [[gsl::Owner(T)]] Owner {
     T& get();
     const T& get() const;
+
+    T* getPtr();
+    const T* getPtr() const;
 };
 
 template <class T>

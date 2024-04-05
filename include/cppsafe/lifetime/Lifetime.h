@@ -55,8 +55,9 @@ enum class NoteType {
     ParamNull,
     NullDefaultConstructed,
     ComparedToNull,
+    DynamicCastToDerived,
     NullConstant,
-    PointeeLeftScope
+    PointeeLeftScope,
 };
 
 enum class ValueSource { Param, Return, OutputParam };
