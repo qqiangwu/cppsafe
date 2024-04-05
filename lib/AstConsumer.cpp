@@ -72,7 +72,10 @@ enum LifetimeDiag {
     note_null_reason_parameter,
     note_null_reason_default_construct,
     note_null_reason_compared_to_null,
+    note_null_reason_dynmiac_cast_to_derived,
+
     note_forbidden_cast,
+
     note_modified,
     note_deleted,
     note_assigned,
@@ -101,6 +104,7 @@ const std::array Notes {
     LifetimeDiag::note_null_reason_parameter,
     LifetimeDiag::note_null_reason_default_construct,
     LifetimeDiag::note_null_reason_compared_to_null,
+    LifetimeDiag::note_null_reason_dynmiac_cast_to_derived,
 };
 
 class Reporter : public LifetimeReporterBase {
@@ -235,8 +239,12 @@ public:
             = E.getCustomDiagID(DiagnosticsEngine::Note, "default-constructed pointers are assumed to be null");
         WarningIds[LifetimeDiag::note_null_reason_compared_to_null]
             = E.getCustomDiagID(DiagnosticsEngine::Note, "is compared to null here");
+        WarningIds[LifetimeDiag::note_null_reason_dynmiac_cast_to_derived]
+            = E.getCustomDiagID(DiagnosticsEngine::Note, "is dynamic_cast to derived");
+
         WarningIds[LifetimeDiag::note_forbidden_cast]
             = E.getCustomDiagID(DiagnosticsEngine::Note, "used a forbidden cast here");
+
         WarningIds[LifetimeDiag::note_modified] = E.getCustomDiagID(DiagnosticsEngine::Note, "modified here");
         WarningIds[LifetimeDiag::note_deleted] = E.getCustomDiagID(DiagnosticsEngine::Note, "deleted here");
         WarningIds[LifetimeDiag::note_assigned] = E.getCustomDiagID(DiagnosticsEngine::Note, "assigned here");

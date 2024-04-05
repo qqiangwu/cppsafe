@@ -20,4 +20,4 @@ fi
 
 src_args=$(head -n1 ${srcfile} | grep "// ARGS:" | awk -F ':' '{print $2}')
 
-$binary "${srcfile}" $src_args $extra -- -Xclang -verify -std=c++20 -Wno-dangling-gsl -Wno-return-stack-address -Wno-unused
+$binary "${srcfile}" $src_args $extra -- -Xclang -verify -std=c++20 -Wno-dangling-gsl -Wno-return-stack-address -Wno-unused -Wno-dangling-field
