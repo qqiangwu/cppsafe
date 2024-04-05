@@ -6,7 +6,6 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
 
 #include "cppsafe/lifetime/Debug.h"
@@ -37,10 +36,12 @@
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/STLFunctionalExtras.h>
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringSwitch.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <llvm/Support/raw_ostream.h>
 
+#include <functional>
 #include <map>
 #include <optional>
 #include <utility>
@@ -635,6 +636,27 @@ public:
         }
     }
 
+    void visitCXXCtorInitializer(const CXXCtorInitializer* I)
+    {
+        if (!I->isAnyMemberInitializer()) {
+            return;
+        }
+
+        // TODO: add aggr support
+        if (!classifyTypeCategory(I->getMember()->getType()).isPointer()) {
+            return;
+        }
+
+        const auto* MD = dyn_cast<CXXMethodDecl>(AnalyzedFD);
+        CPPSAFE_ASSERT(MD);
+
+        auto V = Variable::thisPointer(MD->getParent());
+        V.deref();
+        V.addFieldRef(I->getMember());
+
+        setPSet(PSet::singleton(V), getPSet(I->getInit()), I->getSourceRange());
+    }
+
     void VisitCXXStdInitializerListExpr(const CXXStdInitializerListExpr* E)
     {
         if (hasPSet(E)) {
@@ -1052,6 +1074,8 @@ public:
     DISALLOW_COPY_AND_MOVE(PSetsBuilder);
 
     void visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseBranchExitPMap);
+
+    void onFunctionFinish(const CFGBlock& B);
 };
 
 } // namespace
@@ -1588,6 +1612,8 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
         }
 
         case CFGElement::Initializer:
+            visitCXXCtorInitializer(E.castAs<CFGInitializer>().getInitializer());
+            break;
         case CFGElement::ScopeBegin:
         case CFGElement::ScopeEnd:
         case CFGElement::LoopExit:
@@ -1606,6 +1632,39 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
     const bool FunctionFinished = B.succ_size() == 1 && *B.succ_begin() == &B.getParent()->getExit();
     if (!FunctionFinished) {
         return;
+    }
+
+    onFunctionFinish(B);
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): refine this later
+void PSetsBuilder::onFunctionFinish(const CFGBlock& B)
+{
+    const auto Range = std::invoke([&, this]() -> SourceRange {
+        if (!B.empty()) {
+            const auto R = getSourceRange(B.back());
+            if (R.isValid()) {
+                return R;
+            }
+        }
+
+        return AnalyzedFD->getEndLoc();
+    });
+
+    // Invalidate all parameters
+    const auto ExitPMap = llvm::to_vector(llvm::make_first_range(PMap));
+    for (const auto& V : ExitPMap) {
+        if (const auto* VD = V.asParmVarDecl()) {
+            const auto Ty = VD->getType();
+            if (Ty->isPointerType() || Ty->isReferenceType()) {
+                continue;
+            }
+            if (classifyTypeCategory(V.getType()).isPointer()) {
+                continue;
+            }
+
+            eraseVariable(VD, Range);
+        }
     }
 
     PSetsMap PostConditions;
@@ -1636,8 +1695,8 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
             return *It->second.vars().begin();
         });
 
-        OutVarIt->second.checkSubstitutableFor(OutPSetInPostCond, getSourceRange(B.back()), Reporter,
-            ValueSource::OutputParam, OutVarInPostCond.getName());
+        OutVarIt->second.checkSubstitutableFor(
+            OutPSetInPostCond, Range, Reporter, ValueSource::OutputParam, OutVarInPostCond.getName());
     }
 
     for (const auto& [OutVar, OutPSet] : PMap) {
@@ -1659,8 +1718,8 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
         // TODO: add this&&
 
         if (OutPSet.containsInvalid()) {
-            Reporter.warnNullDangling(WarnType::Dangling, getSourceRange(B.back()), ValueSource::OutputParam,
-                OutVar.getName(), !OutPSet.isInvalid());
+            Reporter.warnNullDangling(
+                WarnType::Dangling, Range, ValueSource::OutputParam, OutVar.getName(), !OutPSet.isInvalid());
             OutPSet.explainWhyInvalid(Reporter);
         }
     }

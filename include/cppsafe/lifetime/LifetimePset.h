@@ -192,7 +192,7 @@ public:
 
 #ifndef NDEBUG
         // We can only add fields that are part of the current record.
-        QualType QT = getType();
+        const QualType QT = getType();
         // Fields can only be added if the current type is a record
         assert(!QT.isNull());
         const CXXRecordDecl* RD = QT->getAsCXXRecordDecl();
