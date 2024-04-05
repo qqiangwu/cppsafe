@@ -1602,36 +1602,66 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
     if (B.hasNoReturnElement() || isThrowingBlock(B)) {
         return;
     }
-    if (B.succ_size() == 1 && *B.succ_begin() == &B.getParent()->getExit()) {
-        PSetsMap PostConditions;
-        getLifetimeContracts(PostConditions, AnalyzedFD, ASTCtxt, &B, IsConvertible, Reporter, /*Pre=*/false);
-        for (const auto& [OutVarInPostCond, OutPSetInPostCond] : PostConditions) {
-            if (OutVarInPostCond.isReturnVal()) {
+
+    const bool FunctionFinished = B.succ_size() == 1 && *B.succ_begin() == &B.getParent()->getExit();
+    if (!FunctionFinished) {
+        return;
+    }
+
+    PSetsMap PostConditions;
+    getLifetimeContracts(PostConditions, AnalyzedFD, ASTCtxt, &B, IsConvertible, Reporter, /*Pre=*/false);
+    for (const auto& [OutVarInPostCond, OutPSetInPostCond] : PostConditions) {
+        if (OutVarInPostCond.isReturnVal()) {
+            continue;
+        }
+
+        auto OutVarIt = PMap.find(OutVarInPostCond);
+        CPPSAFE_ASSERT(OutVarIt != PMap.end());
+
+        // HACK: output variable kept invalid on error path
+        if (OutVarIt->second.containsInvalid() && !Reporter.getOptions().LifetimeOutput) {
+            OutVarIt->second.removeEverythingButNull();
+        }
+
+        OutVarIt->second.transformVars([&](Variable V) {
+            if (!V.isField()) {
+                return V;
+            }
+
+            auto It = PMap.find(V);
+            if (It == PMap.end() || It->second.vars().empty()) {
+                return V;
+            }
+
+            return *It->second.vars().begin();
+        });
+
+        OutVarIt->second.checkSubstitutableFor(OutPSetInPostCond, getSourceRange(B.back()), Reporter,
+            ValueSource::OutputParam, OutVarInPostCond.getName());
+    }
+
+    for (const auto& [OutVar, OutPSet] : PMap) {
+        if (!OutVar.isField()) {
+            continue;
+        }
+        if (!OutVar.isThisPointer() && !OutVar.isParameter()) {
+            continue;
+        }
+        const auto Ty = OutVar.getType();
+        if (Ty.isNull() || !classifyTypeCategory(Ty).isPointer()) {
+            continue;
+        }
+        if (const auto* Parm = OutVar.asParmVarDecl()) {
+            if (Parm->getType()->isRValueReferenceType()) {
                 continue;
             }
-            auto OutVarIt = PMap.find(OutVarInPostCond);
-            CPPSAFE_ASSERT(OutVarIt != PMap.end());
+        }
+        // TODO: add this&&
 
-            // HACK: output variable kept invalid on error path
-            if (OutVarIt->second.containsInvalid() && !Reporter.getOptions().LifetimeOutput) {
-                OutVarIt->second.removeEverythingButNull();
-            }
-
-            OutVarIt->second.transformVars([&](Variable V) {
-                if (!V.isField()) {
-                    return V;
-                }
-
-                auto It = PMap.find(V);
-                if (It == PMap.end() || It->second.vars().empty()) {
-                    return V;
-                }
-
-                return *It->second.vars().begin();
-            });
-
-            OutVarIt->second.checkSubstitutableFor(OutPSetInPostCond, getSourceRange(B.back()), Reporter,
-                ValueSource::OutputParam, OutVarInPostCond.getName());
+        if (OutPSet.containsInvalid()) {
+            Reporter.warnNullDangling(WarnType::Dangling, getSourceRange(B.back()), ValueSource::OutputParam,
+                OutVar.getName(), !OutPSet.isInvalid());
+            OutPSet.explainWhyInvalid(Reporter);
         }
     }
 } // namespace lifetime
