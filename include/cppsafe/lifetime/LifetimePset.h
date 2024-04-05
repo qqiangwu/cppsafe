@@ -574,7 +574,7 @@ public:
     }
 
     bool checkSubstitutableFor(const PSet& O, SourceRange Range, LifetimeReporterBase& Reporter,
-        ValueSource Source = ValueSource::Param, StringRef SourceName = "")
+        ValueSource Source = ValueSource::Param, StringRef SourceName = "") const
     {
         // Everything is substitutable for invalid.
         if (O.ContainsInvalid) {

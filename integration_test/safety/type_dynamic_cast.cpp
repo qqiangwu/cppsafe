@@ -21,7 +21,9 @@ using not_null = T;
 
 void test_dyncast_to_derived(not_null<Base*> p)
 {
-    auto* x = dynamic_cast<Derived1*>(p);  // expected-note {{assigned here}}
+    auto* x = dynamic_cast<Derived1*>(p);
+    // expected-note@-1 {{assigned here}}
+    // expected-note@-2 {{is dynamic_cast to derived}}
     x->Foo();  // expected-warning {{passing a possibly null pointer as argument where a non-null pointer is expected}}
 
     dynamic_cast<Derived1&>(*p).Foo();
