@@ -124,6 +124,8 @@ void CallVisitor::enforcePreAndPostConditions(
 
     checkPreconditions(CallE, PreConditions);
 
+    // if -Wlifetime-call-null is disabled, treat all input pointers as non-null,
+    // to avoid any possibly-null warnings caused by parameters.
     if (!Reporter.getOptions().LifetimeCallNull) {
         for (auto& [_, P] : PreConditions) {
             P.removeNull();
@@ -149,6 +151,8 @@ void CallVisitor::enforcePreAndPostConditions(
         }
     }
 
+    // if -Wlifetime-call-null is disabled, treat all output pointers as non-null,
+    // to avoid any possibly-null warnings caused by function calls
     if (!Reporter.getOptions().LifetimeCallNull) {
         for (auto& [V, P] : PostConditions) {
             P.removeNull();

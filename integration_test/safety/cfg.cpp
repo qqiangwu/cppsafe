@@ -74,3 +74,74 @@ void bar4(int n)
 
     __lifetime_pset(p);  // expected-warning {{((global), n)}}
 }
+
+bool test_ptr(int* p);
+
+void test_if_nonnull_a1()
+{
+    int n = 0;
+    auto* p = &n;
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (n)}}
+
+    if (!p) {  // expected-note {{is compared to null here}}
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+        *p;  // expected-warning {{dereferencing a null pointer}}
+    } else {
+        __lifetime_pset(p);  // expected-warning {{pset(p) = (n)}}
+    }
+}
+
+void test_if_nonnull_a2()
+{
+    int n = 0;
+    auto* p = &n;
+    __lifetime_pset(p);  // expected-warning {{pset(p) = (n)}}
+
+    if (p) {  // expected-note {{is compared to null here}}
+        __lifetime_pset(p);  // expected-warning {{pset(p) = (n)}}
+    } else {
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+        *p;  // expected-warning {{dereferencing a null pointer}}
+    }
+}
+
+void test_if_nonnull_a3()
+{
+    int n = 0;
+    auto* p = &n;
+    if (test_ptr(p)) {
+        __lifetime_pset(p);  // expected-warning {{pset(p) = (n)}}
+    } else {
+        __lifetime_pset(p);  // expected-warning {{pset(p) = (n)}}
+    }
+}
+
+void test_if_null_b1()
+{
+    int* p = nullptr;  // expected-note {{assigned here}}
+    if (p) {  // expected-warning {{redundant control flow, never reachable}}
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((unknown))}}
+    } else {
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+    }
+}
+
+void test_if_null_b2()
+{
+    int* p = nullptr;  // expected-note {{assigned here}}
+    if (!p) {  // expected-warning {{redundant control flow, never reachable}}
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+    } else {
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((unknown))}}
+    }
+}
+
+void test_if_null_a3()
+{
+    int* p = nullptr;
+    if (test_ptr(p)) {
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+    } else {
+        __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+    }
+}

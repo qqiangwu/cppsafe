@@ -1340,15 +1340,34 @@ void PSetsBuilder::updatePSetsFromCondition(
         FalseBranchExitPMap = PMap;
         if (Positive) {
             // The variable is non-null in the if-branch and null in the then-branch.
-            PSElseBranch.removeEverythingButNull();
+            if (PS.isNull()) {
+                Reporter.warnRedundantWorkflow(Range);
+                PS.explainWhyNull(Reporter);
+            }
             PS.removeNull();
+
+            if (!PSElseBranch.containsNull()) {
+                // if PSet dont contains null, redundant null-check will cause it to become {unknown}
+                PSElseBranch.addNull(NullReason::comparedToNull(Range, CurrentBlock));
+            }
+            PSElseBranch.removeEverythingButNull();
+
             auto It = FalseBranchExitPMap->find(DerefV);
             if (It != FalseBranchExitPMap->end()) {
                 It->second = PSet();
             }
         } else {
             // The variable is null in the if-branch and non-null in the then-branch.
+            if (!PS.containsNull()) {
+                // if PSet dont contains null, redundant null-check will cause it to become {unknown}
+                PS.addNull(NullReason::comparedToNull(Range, CurrentBlock));
+            }
             PS.removeEverythingButNull();
+
+            if (PSElseBranch.isNull()) {
+                Reporter.warnRedundantWorkflow(Range);
+                PSElseBranch.explainWhyNull(Reporter);
+            }
             PSElseBranch.removeNull();
             auto It = PMap.find(DerefV);
             if (It != PMap.end()) {
