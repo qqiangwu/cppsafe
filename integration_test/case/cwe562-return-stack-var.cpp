@@ -2,16 +2,18 @@ class MyClass
 {
   int* m_p;
 
-  void Foo() {  // expected-warning {{returning a dangling pointer as output value '(*this).m_p'}}
+  void Foo() {
     int localVar;
     m_p = &localVar;
   }  // expected-note {{pointee 'localVar' left the scope here}}
+  // expected-warning@-1 {{returning a dangling pointer as output value '(*this).m_p'}}
 
   void Foo2()
-  {  // expected-warning {{returning a dangling pointer as output value '(*this).m_p'}}
+  {
     int a[3];
     m_p = &a[0];
   }  // expected-note {{pointee 'a' left the scope here}}
+    // expected-warning@-1 {{returning a dangling pointer as output value '(*this).m_p'}}
 };
 
 void Get(float **x)
@@ -38,10 +40,11 @@ struct Dummy {
 };
 
 void foo(Dummy* d)
-{  // expected-warning {{returning a dangling pointer as output value '(*d).p'}}
+{
     int x;
     d->p = &x;
 }  // expected-note {{pointee 'x' left the scope here}}
+  // expected-warning@-1 {{returning a dangling pointer as output value '(*d).p'}}
 
 void foo2(Dummy*&& d)
 {

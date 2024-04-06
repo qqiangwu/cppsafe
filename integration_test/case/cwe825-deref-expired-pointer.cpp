@@ -9,9 +9,9 @@ class Foo {
 
   void set(int a)
   {
-    x = &a;  // expected-warning {{returning a dangling pointer as output value '(*this).x'}}
+    x = &a;
+  }  // expected-warning {{returning a dangling pointer as output value '(*this).x'}}
     // expected-note@-1 {{pointee 'a' left the scope here}}
-  }
 };
 
 Foo::Foo(int a, int b) :
@@ -33,9 +33,9 @@ struct Foo2 {
 
     void set(Owner<int> a)
     {
-      x = a.getPtr();  // expected-warning {{returning a dangling pointer as output value '(*this).x'}}
+      x = a.getPtr();
+    }// expected-warning {{returning a dangling pointer as output value '(*this).x'}}
        // expected-note@-1 {{pointee 'a' left the scope here}}
-    }
 };
 
 int* get(int a)
@@ -46,6 +46,25 @@ int* get(int a)
 
 void test_param(int a, int** p)
 {
-  *p = &a;  // expected-warning {{returning a dangling pointer as output value '*p'}}
+  *p = &a;
+}// expected-warning {{returning a dangling pointer as output value '*p'}}
    // expected-note@-1 {{pointee 'a' left the scope here}}
-}
+
+struct Object
+{
+    int index;
+    int id;
+};
+
+struct World
+{
+    Object objects[2]{};
+    Object *positions[2]{};
+};
+
+void do_bad(World& world, Object object)
+{
+    object.id = 42;
+    world.positions[object.index] = &object;
+}// expected-warning {{returning a dangling pointer as output value '*world'}}
+   // expected-note@-1 {{pointee 'object' left the scope here}}

@@ -37,14 +37,14 @@ struct Type {
         __lifetime_pset(a);  // expected-warning {{((*this).a)}}
         __lifetime_pset(b);  // expected-warning {{((*this).b)}}
 
-        use(std::move(a));  // expected-note {{moved here}}
+        use(std::move(a));  // expected-note 2 {{moved here}}
 
         __lifetime_pset(a);  // expected-warning {{((invalid))}}
         __lifetime_pset(b);  // expected-warning {{((*this).b)}}
 
         a.foo();  // expected-warning {{use a moved-from object}}
         b.foo();
-    }
+    }  // expected-warning {{returning a dangling pointer as output value '(*this).a'}}
 };
 
 #if 0
