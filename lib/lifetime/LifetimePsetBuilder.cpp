@@ -1685,11 +1685,6 @@ void PSetsBuilder::onFunctionFinish(const CFGBlock& B)
         auto OutVarIt = PMap.find(OutVarInPostCond);
         CPPSAFE_ASSERT(OutVarIt != PMap.end());
 
-        // HACK: output variable kept invalid on error path
-        if (OutVarIt->second.containsInvalid() && !Reporter.getOptions().LifetimeOutput) {
-            OutVarIt->second.removeEverythingButNull();
-        }
-
         OutVarIt->second.transformVars([&](Variable V) {
             if (!V.isField()) {
                 return V;

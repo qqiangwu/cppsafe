@@ -1,9 +1,9 @@
-// ARGS: --Wlifetime-output
+void __lifetime_pmap();
 
-bool foo1(bool x, int*& out)  // expected-note {{it was never initialized here}}
+bool foo1(bool x, int*& out)
 {
     if (x) {
-        return false;  // expected-warning {{returning a dangling pointer as output value '*out'}}
+        return false;
     }
 
     out = new int{};

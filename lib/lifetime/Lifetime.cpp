@@ -363,6 +363,7 @@ static void createEntryPsetsForMembers(const CXXMethodDecl* Method, PSetsMap& PM
 
 /// Traverse all blocks of the CFG.
 /// The traversal is repeated until the psets come to a steady state.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void LifetimeContext::traverseBlocks()
 {
     static constexpr unsigned IterationLimit = 100000;
@@ -374,6 +375,23 @@ void LifetimeContext::traverseBlocks()
     // ExitPSets are the function parameters.
     getLifetimeContracts(BC.ExitPMap, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter, true,
         !Reporter.getOptions().LifetimeCallNull, true);
+
+    // HACK: output variable kept invalid on error path
+    if (!Reporter.getOptions().LifetimeOutput) {
+        PSetsMap PostConditions;
+        getLifetimeContracts(PostConditions, FuncDecl, ASTCtxt, Start, IsConvertible, Reporter, /*Pre=*/false);
+
+        for (auto& [Var, PS] : BC.ExitPMap) {
+            if (!PostConditions.contains(Var)) {
+                continue;
+            }
+
+            if (PS.containsInvalid()) {
+                PS.removeEverythingButNull();
+            }
+        }
+    }
+
     for (const auto* Parm : FuncDecl->parameters()) {
         if (classifyTypeCategory(Parm->getType()).isIndirection()) {
             continue;
