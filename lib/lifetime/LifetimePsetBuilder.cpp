@@ -1522,13 +1522,21 @@ static bool isThrowingBlock(const CFGBlock& B)
 
 static SourceRange getSourceRange(const CFGElement& E)
 {
-    if (auto S = E.getAs<CFGStmt>()) {
-        return S->getStmt()->getSourceRange();
+    const auto* St = std::invoke([&E]() -> const Stmt* {
+        if (auto S = E.getAs<CFGStmt>()) {
+            return S->getStmt();
+        }
+        if (auto S = E.getAs<CFGLifetimeEnds>()) {
+            return S->getTriggerStmt();
+        }
+
+        return nullptr;
+    });
+    if (!St || !isa<ReturnStmt>(St)) {
+        return {};
     }
-    if (auto S = E.getAs<CFGLifetimeEnds>()) {
-        return S->getTriggerStmt()->getSourceRange();
-    }
-    return {};
+
+    return St->getSourceRange();
 }
 
 // Update PSets in Builder through all CFGElements of this block
@@ -1700,15 +1708,17 @@ void PSetsBuilder::onFunctionFinish(const CFGBlock& B)
     }
 
     for (const auto& [OutVar, OutPSet] : PMap) {
-        if (!OutVar.isField()) {
+        if (!OutVar.isField() && !OutVar.isDeref()) {
             continue;
         }
         if (!OutVar.isThisPointer() && !OutVar.isParameter()) {
             continue;
         }
-        const auto Ty = OutVar.getType();
-        if (Ty.isNull() || !classifyTypeCategory(Ty).isPointer()) {
-            continue;
+        if (!OutVar.isDeref()) {
+            const auto Ty = OutVar.getType();
+            if (Ty.isNull() || !classifyTypeCategory(Ty).isPointer()) {
+                continue;
+            }
         }
         if (const auto* Parm = OutVar.asParmVarDecl()) {
             if (Parm->getType()->isRValueReferenceType()) {

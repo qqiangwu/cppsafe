@@ -13,8 +13,7 @@ void test_pointer_assignment(Test* t)
 
     t = new Test{};
     __lifetime_pset(t->p);  // expected-warning {{pset(t->p) = ((global))}}
-    // expected-warning@-1 {{returning a dangling pointer as output value '(*t).p'}}
-}
+}  // expected-warning {{returning a dangling pointer as output value '(*t).p'}}
 
 struct Aggr {
     int x;
