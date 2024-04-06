@@ -20,7 +20,8 @@ void Get(float **x)
 {
   float f;
   *x = &f;
-}
+}  // expected-warning {{returning a dangling pointer as output value '*x'}}
+// expected-note@-1 {{pointee 'f' left the scope here}}
 
 struct CVariable {
   char  name[64];
@@ -32,8 +33,8 @@ void test(int n, char *tokens[])
   {
     CVariable  var;
     tokens[i]  =  var.name;
-  }
-}
+  }  // expected-note {{pointee 'var' left the scope here}}
+}  // expected-warning {{returning a dangling pointer as output value '*tokens'}}
 
 struct Dummy {
     int* p;
