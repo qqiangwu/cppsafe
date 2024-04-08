@@ -39,6 +39,11 @@ public:
     virtual PSet getPSet(const Variable& V) const = 0;
     virtual PSet getPSet(const PSet& P) const = 0;
 
+    virtual std::optional<PSet> getVarPSet(const Variable& V) = 0;
+    virtual void setVarPSet(Variable V, const PSet& PS) = 0;
+    virtual void clearVarPSet(const Variable& V) = 0;
+    virtual void forEachExprMember(const Expr* Ex, llvm::function_ref<void(const Variable&, const PSet&)> Fn) = 0;
+
     virtual void debugPmap(SourceRange Range) const = 0;
 
     virtual PSet derefPSet(const PSet& P) const = 0;
@@ -49,15 +54,16 @@ public:
     virtual void invalidateVar(const Variable& V, const InvalidationReason& Reason) = 0;
 
     // Workaround
-    virtual void removePSetIf(llvm::function_ref<bool(const Variable&, const PSet&)> Fn) = 0;
+    virtual const CFGBlock* getCurrentBlock() = 0;
+    virtual LifetimeReporterBase& getReporter() = 0;
 };
 
 /// Updates psets with all effects that appear in the block.
 /// \param Reporter if non-null, emits diagnostics
 /// \returns false when an unsupported AST node disabled the analysis
 bool visitBlock(const FunctionDecl* FD, PSetsMap& PMap, std::optional<PSetsMap>& FalseBranchExitPMap,
-    std::map<const Expr*, PSet>& PSetsOfExpr, std::map<const Expr*, PSet>& RefersTo, const CFGBlock& B,
-    LifetimeReporterBase& Reporter, ASTContext& ASTCtxt, IsConvertibleTy IsConvertible);
+    PSetsMap& ExprMemberPMap, std::map<const Expr*, PSet>& PSetsOfExpr, std::map<const Expr*, PSet>& RefersTo,
+    const CFGBlock& B, LifetimeReporterBase& Reporter, ASTContext& ASTCtxt, IsConvertibleTy IsConvertible);
 
 /// Get the initial PSets for function parameters.
 void getLifetimeContracts(PSetsMap& PMap, const FunctionDecl* FD, const ASTContext& ASTCtxt, const CFGBlock* Block,

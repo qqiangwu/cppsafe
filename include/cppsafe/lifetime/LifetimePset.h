@@ -17,9 +17,12 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/ExprCXX.h"
 #include <clang/AST/DeclCXX.h>
+#include <clang/AST/Expr.h>
 #include <fmt/core.h>
 #include <llvm/ADT/STLFunctionalExtras.h>
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringExtras.h>
+#include <range/v3/action/push_back.hpp>
 #include <range/v3/algorithm/find_if_not.hpp>
 #include <range/v3/view/reverse.hpp>
 
@@ -60,6 +63,17 @@ public:
         : ContractVariable(MT)
     {
         assert(MT);
+    }
+
+    explicit Variable(const Expr* E)
+        : ContractVariable(E)
+    {
+    }
+
+    Variable(const Variable& V, const FieldDecl* FD)
+        : Variable(V)
+    {
+        addFieldRef(FD);
     }
 
     Variable(const ContractVariable& CV, const FunctionDecl* FD)
@@ -159,6 +173,9 @@ public:
         if (const RecordDecl* RD = asThis()) {
             return RD->getASTContext().getPointerType(RD->getASTContext().getRecordType(RD));
         }
+        if (const auto* E = Var.dyn_cast<const Expr*>()) {
+            return E->getType();
+        }
 
         CPPSAFE_ASSERT(!"Invalid state");
     }
@@ -178,6 +195,15 @@ public:
     }
 
     const VarDecl* asVarDecl() const { return Var.dyn_cast<const VarDecl*>(); }
+
+    const Expr* asExpr() const
+    {
+        const auto* E = Var.dyn_cast<const Expr*>();
+        if (!E || isa<MaterializeTemporaryExpr>(E)) {
+            return nullptr;
+        }
+        return E;
+    }
 
     // Chain of field accesses starting from VD. Types must match.
     void addFieldRefUnchecked(const FieldDecl* FD)
@@ -205,6 +231,23 @@ public:
             || dyn_cast<CXXRecordDecl>(FD->getParent())->isDerivedFrom(RD));
 #endif
         FDs.push_back(FD);
+    }
+
+    // replace the expr part to `V`
+    Variable replaceExpr(const Variable& V) const
+    {
+        CPPSAFE_ASSERT(asExpr());
+
+        auto Ret = V;
+        ranges::actions::push_back(Ret.FDs, FDs);
+        return Ret;
+    }
+
+    Variable chainFields(const Variable& V) const
+    {
+        auto Ret = *this;
+        ranges::actions::push_back(Ret.FDs, V.FDs);
+        return Ret;
     }
 
     Variable& deref(int Num = 1)
@@ -248,6 +291,8 @@ public:
             Ret = "this";
         } else if (isReturnVal()) {
             Ret = "(return value)";
+        } else if (const auto* E = Var.dyn_cast<const Expr*>()) {
+            Ret = fmt::format("(expr[{}-{}])", E->getStmtClassName(), static_cast<const void*>(E));
         } else {
             CPPSAFE_ASSERT(!"Invalid state");
         }

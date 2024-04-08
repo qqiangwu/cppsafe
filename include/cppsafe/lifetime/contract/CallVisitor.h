@@ -8,6 +8,7 @@
 #include <clang/AST/Decl.h>
 #include <clang/AST/Expr.h>
 #include <clang/Analysis/CFG.h>
+#include <clang/Basic/SourceLocation.h>
 #include <gsl/pointers>
 
 namespace clang::lifetime {
@@ -35,6 +36,8 @@ public:
 private:
     bool handlePointerCopy(const CallExpr* CallE);
 
+    bool handleAggregateCopy(const CallExpr* CallE);
+
     void tryResetPSet(const CallExpr* CallE);
     const Expr* getObjectNeedReset(const CallExpr* CallE);
 
@@ -47,6 +50,7 @@ private:
     void invalidateVarOnNoConstUse(const Expr* Arg, const TypeClassification& TC);
     void checkUseAfterMove(const PSetsMap& PreConditions, const ParmVarDecl* PVD, const Expr* Arg);
     bool checkUseAfterMove(const Type* Ty, const PSet& P, SourceRange Range);
+    void reportUseAfterMove(const PSet& P, SourceRange Range);
 
 private:
     PSBuilder& Builder;

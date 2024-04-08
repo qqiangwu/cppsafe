@@ -10,10 +10,12 @@
 
 #include "cppsafe/lifetime/Debug.h"
 #include "cppsafe/lifetime/Lifetime.h"
+#include "cppsafe/lifetime/LifetimeAttrData.h"
 #include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
 #include "cppsafe/lifetime/contract/CallVisitor.h"
+#include "cppsafe/lifetime/type/Aggregate.h"
 #include "cppsafe/util/assert.h"
 #include "cppsafe/util/type.h"
 
@@ -91,6 +93,7 @@ class PSetsBuilder final : public ConstStmtVisitor<PSetsBuilder, void>, public P
     /// by their non-reference variable declaration or
     /// MaterializedTemporaryExpr plus (optional) FieldDecls.
     PSetsMap& PMap;
+    PSetsMap& ExprMemberPMap;
     std::map<const Expr*, PSet>& PSetsOfExpr;
     std::map<const Expr*, PSet>& RefersTo;
     const CFGBlock* CurrentBlock = nullptr;
@@ -321,8 +324,14 @@ public:
     {
         const PSet Singleton = PSet::singleton(E);
         setPSet(E, Singleton);
+        if (classifyTypeCategory(E->getType()).isAggregate()) {
+            // [[types.aggr.init]]
+            handleAggregateCopy(E, E->getSubExpr(), *this);
+            return;
+        }
+
         if (hasPSet(E->getSubExpr())) {
-            auto TC = classifyTypeCategory(E->getSubExpr()->getType());
+            const auto TC = classifyTypeCategory(E->getSubExpr()->getType());
             if (TC == TypeCategory::Owner) {
                 setPSet(Singleton, PSet::singleton(E, 1), E->getSourceRange());
             } else {
@@ -337,8 +346,10 @@ public:
     {
         I = !I->isSemanticForm() ? I->getSemanticForm() : I;
 
+        const auto TC = classifyTypeCategory(I->getType());
+
         // [[types.pointer.init.assign]]
-        if (isPointer(I)) {
+        if (TC.isPointer()) {
             // TODO: Instead of assuming that the pset comes from the first argument
             // use the same logic we have in call modelling.
             if (I->getNumInits() == 1) {
@@ -356,6 +367,16 @@ public:
             }
             return;
         }
+        // [[types.aggr.init]]
+        if (TC.isAggregate()) {
+            handleAggregateInit(
+                Variable(I), I->getType()->getAsCXXRecordDecl(), I, CurrentBlock, I->getSourceRange(), *this);
+
+            // nonsense, just make handleAggregateCopy works
+            setPSet(I, PSet::singleton(Variable(I)));
+            return;
+        }
+
         setPSet(I, {});
     }
 
@@ -594,19 +615,66 @@ public:
             PostConditions[Variable::returnVal()], R->getSourceRange(), Reporter, ValueSource::Return);
     }
 
-    void VisitCXXConstructExpr(const CXXConstructExpr* E)
+    void VisitCXXTemporaryObjectExpr(const CXXTemporaryObjectExpr* E)
     {
-        if (!isPointer(E)) {
-            // Default, will be overwritten if it makes sense.
-            setPSet(E, {});
+        const auto ExprTy = classifyTypeCategory(E->getType());
+        if (ExprTy.isAggregate()) {
+            const auto* Ctor = E->getConstructor();
+            if (Ctor->isDefaultConstructor()) {
+                handleAggregateDefaultInit(
+                    Variable(E), E->getType()->getAsCXXRecordDecl(), CurrentBlock, E->getSourceRange(), *this);
+            } else if (Ctor->isCopyOrMoveConstructor()) {
+                handleAggregateCopy(E, E->getArg(0), *this);
 
-            // Constructing a temporary owner/value
-            CallVisitor C(*this, Reporter, CurrentBlock);
-            C.enforcePreAndPostConditions(E, ASTCtxt, IsConvertible);
+                CallVisitor C(*this, Reporter, CurrentBlock);
+                C.enforcePreAndPostConditions(E, ASTCtxt, IsConvertible);
+            }
 
+            setPSet(E, PSet::singleton(Variable(E)));
+            return;
+        }
+        if (ExprTy.isPointer()) {
+            visitPointerConstructExpr(E);
             return;
         }
 
+        // Default, will be overwritten if it makes sense.
+        setPSet(E, {});
+    }
+
+    void VisitCXXConstructExpr(const CXXConstructExpr* E)
+    {
+        const auto ExprTy = classifyTypeCategory(E->getType());
+        if (ExprTy.isAggregate()) {
+            const auto* Ctor = E->getConstructor();
+            if (Ctor->isDefaultConstructor()) {
+                handleAggregateDefaultInit(
+                    Variable(E), E->getType()->getAsCXXRecordDecl(), CurrentBlock, E->getSourceRange(), *this);
+            } else if (Ctor->isCopyOrMoveConstructor()) {
+                handleAggregateCopy(E, E->getArg(0), *this);
+
+                CallVisitor C(*this, Reporter, CurrentBlock);
+                C.enforcePreAndPostConditions(E, ASTCtxt, IsConvertible);
+            }
+
+            setPSet(E, PSet::singleton(Variable(E)));
+            return;
+        }
+        if (ExprTy.isPointer()) {
+            visitPointerConstructExpr(E);
+            return;
+        }
+
+        // Default, will be overwritten if it makes sense.
+        setPSet(E, {});
+
+        // Constructing a temporary owner/value
+        CallVisitor C(*this, Reporter, CurrentBlock);
+        C.enforcePreAndPostConditions(E, ASTCtxt, IsConvertible);
+    }
+
+    void visitPointerConstructExpr(const CXXConstructExpr* E)
+    {
         // [[types.pointer.init.default]]
         if (E->getNumArgs() == 0) {
             PSet P;
@@ -678,6 +746,8 @@ public:
     {
         // We don't really care, because this expression is not referenced
         // anywhere. But still set it to satisfy the VisitStmt() post-condition.
+
+        // ImplicitValueInitExpr does not have a valid SourceRange
         setPSet(E, {});
     }
 
@@ -771,10 +841,9 @@ public:
         });
     }
 
-    void removePSetIf(llvm::function_ref<bool(const Variable&, const PSet&)> Fn) override
-    {
-        std::erase_if(PMap, [Fn](const auto& X) { return Fn(X.first, X.second); });
-    }
+    const CFGBlock* getCurrentBlock() override { return CurrentBlock; }
+
+    LifetimeReporterBase& getReporter() override { return Reporter; }
 
     // Remove the variable from the pset together with the materialized
     // temporaries extended by that variable. It also invalidates the pointers
@@ -883,7 +952,58 @@ public:
             PSetsOfExpr[E] = PS;
         }
     }
+
     void setPSet(const PSet& LHS, PSet RHS, SourceRange Range) override;
+
+    std::optional<PSet> getVarPSet(const Variable& V) override
+    {
+        if (V.asExpr()) {
+            auto I = ExprMemberPMap.find(V);
+            if (I == ExprMemberPMap.end()) {
+                return std::nullopt;
+            }
+            return I->second;
+        }
+
+        return getPSet(V);
+    }
+
+    void setVarPSet(Variable V, const PSet& PS) override
+    {
+        if (V.asExpr()) {
+            ExprMemberPMap.insert_or_assign(std::move(V), PS);
+        } else {
+            PMap[V] = PS;
+        }
+    }
+
+    void clearVarPSet(const Variable& V) override
+    {
+        if (V.asExpr()) {
+            ExprMemberPMap.erase(V);
+        } else {
+            PMap.erase(V);
+        }
+    }
+
+    void forEachExprMember(const Expr* Ex, llvm::function_ref<void(const Variable&, const PSet&)> Fn) override
+    {
+        for (const auto& [V, P] : ExprMemberPMap) {
+            if (const auto* E = V.asExpr(); E && Ex == E) {
+                Fn(V, P);
+            }
+        }
+    }
+
+    std::optional<PSet> getExprPset(const Variable& V)
+    {
+        auto It = ExprMemberPMap.find(V);
+        if (It == ExprMemberPMap.end()) {
+            return {};
+        }
+
+        return std::make_optional<PSet>(It->second);
+    }
 
     PSet derefPSet(const PSet& P) const override;
     PSet derefPSetForMemberIfNecessary(const PSet& P) const;
@@ -939,31 +1059,24 @@ public:
             setPSet(PSet::singleton(VD), PSet::singleton(VD, 1), Range);
             break;
         }
+        // [[types.aggr.init]]
         case TypeCategory::Aggregate: {
             setPSet(PSet::singleton(VD), PSet::singleton(VD), Range);
 
-            const auto* IL = dyn_cast<InitListExpr>(Initializer);
-            if (!IL) {
-                break;
-            }
+            forEachExprMember(Initializer, [this, VD, Range](const Variable& V, const PSet& P) {
+                auto MemberVar = V.replaceExpr(Variable(VD));
 
-            // set fields of a struct when init by {}
-            for (const auto* FD : VD->getType()->getAsCXXRecordDecl()->fields()) {
-                if (!classifyTypeCategory(FD->getType()).isPointer()) {
-                    continue;
-                }
+                auto PS = P;
+                PS.transformVars([VD](Variable V) {
+                    if (V.asExpr()) {
+                        V = V.replaceExpr(VD);
+                    }
 
-                const Variable Member = Variable(VD, FD);
-                if (IL && FD->getFieldIndex() < IL->getNumInits()) {
-                    setPSet(PSet::singleton(Member), getPSet(IL->getInit(FD->getFieldIndex())), VD->getSourceRange());
-                } else if (isNullableType(FD->getType())) {
-                    setPSet(PSet::singleton(Member),
-                        PSet::invalid(InvalidationReason::notInitialized(VD->getLocation(), CurrentBlock)),
-                        VD->getSourceRange());
-                } else {
-                    setPSet(PSet::singleton(Member), PSet::singleton(Member), VD->getSourceRange());
-                }
-            }
+                    return V;
+                });
+
+                setPSet(PSet::singleton(MemberVar), PS, Range);
+            });
 
             break;
         }
@@ -1058,12 +1171,14 @@ public:
 
 public:
     PSetsBuilder(const FunctionDecl* FD, LifetimeReporterBase& Reporter, ASTContext& ASTCtxt, PSetsMap& PMap,
-        std::map<const Expr*, PSet>& PSetsOfExpr, std::map<const Expr*, PSet>& RefersTo, IsConvertibleTy IsConvertible)
+        PSetsMap& ExprMemberPMap, std::map<const Expr*, PSet>& PSetsOfExpr, std::map<const Expr*, PSet>& RefersTo,
+        IsConvertibleTy IsConvertible)
         : AnalyzedFD(FD)
         , Reporter(Reporter)
         , ASTCtxt(ASTCtxt)
         , IsConvertible(IsConvertible)
         , PMap(PMap)
+        , ExprMemberPMap(ExprMemberPMap)
         , PSetsOfExpr(PSetsOfExpr)
         , RefersTo(RefersTo)
     {
@@ -1496,6 +1611,11 @@ void PSetsBuilder::debugPmap(const SourceRange) const
         V->dumpPretty(ASTCtxt);
         llvm::errs() << ") -> " << P.str() << "\n";
     }
+
+    llvm::errs() << "\nPSetsOfExprMember\n";
+    for (const auto& [V, P] : ExprMemberPMap) {
+        llvm::errs() << "pset(" << V.getName() << ") -> " << P.str() << "\n";
+    }
 }
 
 static const Stmt* getRealTerminator(const CFGBlock& B)
@@ -1553,7 +1673,6 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
             if (isa<RecoveryExpr>(S) || isa<UnresolvedLookupExpr>(S) || isa<UnresolvedMemberExpr>(S)) {
                 return;
             }
-
             if (!isIgnoredStmt(S)) {
                 Visit(S);
 #ifndef NDEBUG
@@ -1584,6 +1703,7 @@ void PSetsBuilder::visitBlock(const CFGBlock& B, std::optional<PSetsMap>& FalseB
                 // This is why currently the sets are only cleared for
                 // statements which are not expressions.
                 // TODO: clean this up by properly tracking end of full exprs.
+                ExprMemberPMap.clear();
                 RefersTo.clear();
                 PSetsOfExpr.clear();
             }
@@ -1731,11 +1851,11 @@ void PSetsBuilder::onFunctionFinish(const CFGBlock& B)
 } // namespace lifetime
 
 bool visitBlock(const FunctionDecl* FD, PSetsMap& PMap, std::optional<PSetsMap>& FalseBranchExitPMap,
-    std::map<const Expr*, PSet>& PSetsOfExpr, std::map<const Expr*, PSet>& RefersTo, const CFGBlock& B,
-    LifetimeReporterBase& Reporter, ASTContext& ASTCtxt, IsConvertibleTy IsConvertible)
+    PSetsMap& ExprMemberPMap, std::map<const Expr*, PSet>& PSetsOfExpr, std::map<const Expr*, PSet>& RefersTo,
+    const CFGBlock& B, LifetimeReporterBase& Reporter, ASTContext& ASTCtxt, IsConvertibleTy IsConvertible)
 {
     Reporter.setCurrentBlock(&B);
-    PSetsBuilder Builder(FD, Reporter, ASTCtxt, PMap, PSetsOfExpr, RefersTo, IsConvertible);
+    PSetsBuilder Builder(FD, Reporter, ASTCtxt, PMap, ExprMemberPMap, PSetsOfExpr, RefersTo, IsConvertible);
     Builder.visitBlock(B, FalseBranchExitPMap);
     return true;
 }

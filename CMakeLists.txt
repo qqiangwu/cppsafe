@@ -86,7 +86,9 @@ ${CMAKE_SOURCE_DIR}/lib/lifetime/LifetimePsetBuilder.cpp
 ${CMAKE_SOURCE_DIR}/lib/lifetime/LifetimeTypeCategory.cpp
 ${CMAKE_SOURCE_DIR}/lib/lifetime/Debug.cpp
 ${CMAKE_SOURCE_DIR}/lib/lifetime/contract/CallVisitor.cpp
-${CMAKE_SOURCE_DIR}/lib/lifetime/contract/Parser.cpp)
+${CMAKE_SOURCE_DIR}/lib/lifetime/contract/Parser.cpp
+${CMAKE_SOURCE_DIR}/lib/lifetime/type/Aggregate.cpp
+)
 set_target_properties(cppsafe_lib PROPERTIES OUTPUT_NAME "cppsafe")
 
 target_include_directories(cppsafe_lib PUBLIC ${CMAKE_SOURCE_DIR}/include)

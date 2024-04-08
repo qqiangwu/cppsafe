@@ -168,6 +168,7 @@ class LifetimeContext {
     LifetimeReporterBase& Reporter;
     IsConvertibleTy IsConvertible;
 
+    PSetsMap ExprMemberPMap;
     std::map<const Expr*, PSet> PSetsOfExpr;
     std::map<const Expr*, PSet> RefersTo;
 
@@ -431,8 +432,8 @@ void LifetimeContext::traverseBlocks()
         ++IterationCount;
         BC.ExitPMap = BC.EntryPMap;
         Visited[Current->getBlockID()] = true;
-        visitBlock(FuncDecl, BC.ExitPMap, BC.FalseBranchExitPMap, PSetsOfExpr, RefersTo, *Current, Reporter, ASTCtxt,
-            IsConvertible);
+        visitBlock(FuncDecl, BC.ExitPMap, BC.FalseBranchExitPMap, ExprMemberPMap, PSetsOfExpr, RefersTo, *Current,
+            Reporter, ASTCtxt, IsConvertible);
 
         if (const auto* T = Current->getTerminatorStmt()) {
             // HACK
