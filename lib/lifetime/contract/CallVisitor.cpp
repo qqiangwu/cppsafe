@@ -213,11 +213,11 @@ bool CallVisitor::handleAggregateCopy(const CallExpr* CallE)
     // LHS maybe `*t`
     for (const auto& LHSVar : LHSPSet.vars()) {
         expandAggregate(LHSVar, CallE->getType()->getAsCXXRecordDecl(),
-            [&](const Variable& LhsSubVar, const FieldDecl* FD, TypeClassification TC) {
-                const auto RhsSubVar = Variable(CallE).chainFields(LhsSubVar);
+            [&](const Variable& LhsSubVar, const SubVarPath& Path, TypeClassification TC) {
+                const auto RhsSubVar = Variable(CallE).chainFields(Path);
 
                 if (!TC.isPointer()) {
-                    if (FD == nullptr) {
+                    if (Path.empty()) {
                         // aggregate object itself
                         Builder.setVarPSet(LhsSubVar, PSet::singleton(LhsSubVar));
                         return;
@@ -228,7 +228,10 @@ bool CallVisitor::handleAggregateCopy(const CallExpr* CallE)
                 }
 
                 auto RHSPSet = Builder.getVarPSet(RhsSubVar);
-                CPPSAFE_ASSERT(RHSPSet);
+                if (!RHSPSet) {
+                    //
+                    return;
+                }
 
                 RHSPSet->transformVars([&](Variable V) {
                     if (V.asExpr()) {
