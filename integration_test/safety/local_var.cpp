@@ -29,7 +29,7 @@ void f2()
     // TODO(types): finish Aggregate init
     __lifetime_pset(a);  // expected-warning {{pset(a) = (a)}}
     __lifetime_pset(a.x);  // expected-warning {{pset(a.x) = (a.x)}}
-    __lifetime_pset(a.y);  // expected-warning {{pset(a.y) = ((global))}}
+    __lifetime_pset(a.y);  // expected-warning {{pset(a.y) = ((invalid))}}
     __lifetime_pset(a.z);  // expected-warning {{pset(a.z) = ((global))}}
 
     __lifetime_pset(b);  // expected-warning {{pset(b) = ((invalid))}}

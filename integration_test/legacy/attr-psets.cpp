@@ -150,10 +150,10 @@ struct S {
     __lifetime_pset(p); // expected-warning {{pset(p) = ((global))}}
     S s2;
     p = s2.mp;
-    __lifetime_pset(p); // TODO expected-warning {{pset(p) = ((global))}}
+    __lifetime_pset(p); // expected-warning {{pset(p) = ((invalid))}}
     const S &s3 = S();
     p = s3.mp;
-    __lifetime_pset(p); // expected-warning {{pset(p) = ((global))}}
+    __lifetime_pset(p); // expected-warning {{pset(p) = ((invalid))}}
     return true;
   }
 

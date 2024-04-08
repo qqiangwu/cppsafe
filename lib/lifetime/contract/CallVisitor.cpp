@@ -4,6 +4,7 @@
 #include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
+#include "cppsafe/lifetime/type/Aggregate.h"
 
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Attr.h>
@@ -30,7 +31,10 @@ const FunctionDecl* getDecl(const Expr* CE)
         return CallE->getDirectCallee();
     }
 
-    return cast<CXXConstructExpr>(CE)->getConstructor();
+    const auto* Ctor = dyn_cast<CXXConstructExpr>(CE)->getConstructor();
+    CPPSAFE_ASSERT(Ctor != nullptr);
+
+    return Ctor;
 }
 
 template <typename PC, typename TC>
@@ -99,6 +103,10 @@ void CallVisitor::run(const CallExpr* CallE, ASTContext& ASTCtxt, const IsConver
 
     /// Special case for assignment of Pointer into Pointer: copy pset
     if (handlePointerCopy(CallE)) {
+        return;
+    }
+    if (handleAggregateCopy(CallE)) {
+        enforcePreAndPostConditions(CallE, ASTCtxt, IsConvertible);
         return;
     }
 
@@ -187,6 +195,55 @@ bool CallVisitor::handlePointerCopy(const CallExpr* CallE)
     return false;
 }
 
+bool CallVisitor::handleAggregateCopy(const CallExpr* CallE)
+{
+    // TODO: what if user overrides assignment? WARN it
+    const auto* OC = dyn_cast<CXXOperatorCallExpr>(CallE);
+    if (!OC || OC->getOperator() != OO_Equal || OC->getNumArgs() != 2
+        || !classifyTypeCategory(OC->getArg(0)->getType()).isAggregate()) {
+        return false;
+    }
+
+    using lifetime::handleAggregateCopy;
+
+    const auto* RArg = OC->getArg(1);
+    handleAggregateCopy(CallE, RArg, Builder);
+
+    const auto LHSPSet = Builder.getPSet(OC->getArg(0));
+    // LHS maybe `*t`
+    for (const auto& LHSVar : LHSPSet.vars()) {
+        expandAggregate(LHSVar, CallE->getType()->getAsCXXRecordDecl(),
+            [&](const Variable& LhsSubVar, const FieldDecl* FD, TypeClassification TC) {
+                const auto RhsSubVar = Variable(CallE).chainFields(LhsSubVar);
+
+                if (!TC.isPointer()) {
+                    if (FD == nullptr) {
+                        // aggregate object itself
+                        Builder.setVarPSet(LhsSubVar, PSet::singleton(LhsSubVar));
+                        return;
+                    }
+
+                    Builder.clearVarPSet(LhsSubVar);
+                    return;
+                }
+
+                auto RHSPSet = Builder.getVarPSet(RhsSubVar);
+                CPPSAFE_ASSERT(RHSPSet);
+
+                RHSPSet->transformVars([&](Variable V) {
+                    if (V.asExpr()) {
+                        V = V.replaceExpr(LHSVar);
+                    }
+
+                    return V;
+                });
+
+                Builder.setVarPSet(LhsSubVar, *RHSPSet);
+            });
+    }
+    return true;
+}
+
 void CallVisitor::tryResetPSet(const CallExpr* CallE)
 {
     const auto* Obj = getObjectNeedReset(CallE);
@@ -209,18 +266,6 @@ void CallVisitor::tryResetPSet(const CallExpr* CallE)
         if (!P.vars().empty()) {
             P = PSet::singleton(*P.vars().begin(), 1);
         }
-    }
-
-    // Workaround: aggregate assignment
-    if (TC.isAggregate()) {
-        const auto PS = Builder.getPSet(Obj);
-
-        if (PS.vars().size() == 1) {
-            const auto& Var = *PS.vars().begin();
-            Builder.removePSetIf([&Var](const auto& V, const auto&) { return Var.isParent(V); });
-        }
-
-        // TODO: handle aggregate assignment
     }
 
     Builder.setPSet(Builder.getPSet(Obj), P, CallE->getSourceRange());
@@ -317,7 +362,7 @@ void CallVisitor::checkPreconditions(const Expr* CallE, PSetsMap& PreConditions)
     forEachArgParamPair(
         CallE,
         [&](const ParmVarDecl* PVD, const Expr* Arg, int) {
-            PSet ArgPS = Builder.getPSet(Arg, /*AllowNonExisting=*/true);
+            const PSet ArgPS = Builder.getPSet(Arg, /*AllowNonExisting=*/true);
             if (ArgPS.isUnknown()) {
                 return;
             }
@@ -353,7 +398,7 @@ void CallVisitor::checkPreconditions(const Expr* CallE, PSetsMap& PreConditions)
             // V is this
             // ArgPs is pset(this)
             // we will always verify pset(*this) is valid
-            PSet ArgPS = Builder.getPSet(ObjExpr);
+            const PSet ArgPS = Builder.getPSet(ObjExpr);
             if (PreConditions.contains(V)) {
                 if (!checkUseAfterMove(RD->getTypeForDecl(), Builder.derefPSet(ArgPS), ObjExpr->getSourceRange())) {
                     Builder.setPSet(ObjExpr, PSet()); // Suppress further warnings.
@@ -513,4 +558,5 @@ bool CallVisitor::checkUseAfterMove(const Type* Ty, const PSet& P, SourceRange R
     P.explainWhyInvalid(Reporter);
     return false;
 }
+
 }
