@@ -986,11 +986,11 @@ public:
         }
     }
 
-    void forEachExprMember(const Expr* Ex, llvm::function_ref<void(const Variable&, const PSet&)> Fn) override
+    void forEachExprMember(const Expr* Ex, llvm::function_ref<void(const SubVarPath&, const PSet&)> Fn) override
     {
         for (const auto& [V, P] : ExprMemberPMap) {
             if (const auto* E = V.asExpr(); E && Ex == E) {
-                Fn(V, P);
+                Fn(V.getSubVarPath(), P);
             }
         }
     }
@@ -1063,8 +1063,8 @@ public:
         case TypeCategory::Aggregate: {
             setPSet(PSet::singleton(VD), PSet::singleton(VD), Range);
 
-            forEachExprMember(Initializer, [this, VD, Range](const Variable& V, const PSet& P) {
-                auto MemberVar = V.replaceExpr(Variable(VD));
+            forEachExprMember(Initializer, [this, VD, Range](const SubVarPath& Path, const PSet& P) {
+                auto MemberVar = Variable(VD).chainFields(Path);
 
                 auto PS = P;
                 PS.transformVars([VD](Variable V) {

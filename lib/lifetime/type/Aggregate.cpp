@@ -16,68 +16,86 @@
 
 namespace clang::lifetime {
 
-void expandAggregate(const Variable& Base, const CXXRecordDecl* RD,
-    llvm::function_ref<void(const Variable&, const FieldDecl*, TypeClassification)> Fn)
+namespace {
+
+void expandAggregateImpl(const Variable& Base, const CXXRecordDecl* RD, SubVarPath& Path,
+    llvm::function_ref<void(const Variable&, const SubVarPath&, TypeClassification)> Fn)
 {
-    CPPSAFE_ASSERT(RD->hasDefinition());
-
-    Fn(Base, nullptr, classifyTypeCategory(RD->getTypeForDecl()));
-
     for (const auto* FD : RD->fields()) {
         const auto Ty = FD->getType();
         const auto TC = classifyTypeCategory(Ty);
 
-        Fn(Variable(Base, FD), FD, TC);
+        Path.push_back(FD);
+
+        Fn(Variable(Base, FD), Path, TC);
 
         if (TC.isAggregate()) {
             auto VV = Base;
             VV.addFieldRef(FD);
-            expandAggregate(VV, Ty->getAsCXXRecordDecl(), Fn);
+            expandAggregateImpl(VV, Ty->getAsCXXRecordDecl(), Path, Fn);
         }
+
+        Path.pop_back();
     }
+}
+
+}
+
+void expandAggregate(const Variable& Base, const CXXRecordDecl* RD,
+    llvm::function_ref<void(const Variable&, const SubVarPath&, TypeClassification)> Fn)
+{
+    CPPSAFE_ASSERT(RD->hasDefinition());
+
+    SubVarPath Path;
+    Fn(Base, Path, classifyTypeCategory(RD->getTypeForDecl()));
+
+    expandAggregateImpl(Base, RD, Path, Fn);
 }
 
 void handleAggregateDefaultInit(
     const Variable& Base, const CXXRecordDecl* RD, const CFGBlock* B, SourceRange Range, PSBuilder& Builder)
 {
-    expandAggregate(Base, RD, [&Builder, Range, B](const Variable& SubVar, const FieldDecl* FD, TypeClassification TC) {
-        if (!TC.isPointer()) {
-            return;
-        }
-
-        CPPSAFE_ASSERT(FD != nullptr);
-        const auto FDTy = FD->getType();
-        const auto* Init = FD->getInClassInitializer();
-        if (Init == nullptr) {
-            // primitive types
-            if (FDTy->isPointerType()) {
-                Builder.setVarPSet(SubVar, PSet::invalid(InvalidationReason::notInitialized(Range, B)));
+    expandAggregate(
+        Base, RD, [&Builder, Range, B](const Variable& SubVar, const SubVarPath& Path, TypeClassification TC) {
+            if (!TC.isPointer()) {
                 return;
             }
 
-            // record types
-            if (isNullableType(FDTy)) {
-                Builder.setVarPSet(SubVar, PSet::null(NullReason::defaultConstructed(Range, B)));
-            } else {
-                Builder.setVarPSet(SubVar, PSet::globalVar(false));
+            CPPSAFE_ASSERT(!Path.empty());
+
+            const auto* FD = Path.back();
+            const auto FDTy = FD->getType();
+            const auto* Init = FD->getInClassInitializer();
+            if (Init == nullptr) {
+                // primitive types
+                if (FDTy->isPointerType()) {
+                    Builder.setVarPSet(SubVar, PSet::invalid(InvalidationReason::notInitialized(Range, B)));
+                    return;
+                }
+
+                // record types
+                if (isNullableType(FDTy)) {
+                    Builder.setVarPSet(SubVar, PSet::null(NullReason::defaultConstructed(Range, B)));
+                } else {
+                    Builder.setVarPSet(SubVar, PSet::globalVar(false));
+                }
+
+                return;
             }
 
-            return;
-        }
+            if (isa<CXXNewExpr>(Init)) {
+                Builder.getReporter().warnNakedNewDelete(Init->getSourceRange());
+                Builder.setVarPSet(SubVar, PSet::globalVar());
+                return;
+            }
+            if (const auto* Cast = dyn_cast<ImplicitCastExpr>(Init); Cast && Cast->getCastKind() == CK_NullToPointer) {
+                Builder.setVarPSet(SubVar, PSet::null(NullReason::defaultConstructed(Range, B)));
+                return;
+            }
 
-        if (isa<CXXNewExpr>(Init)) {
-            Builder.getReporter().warnNakedNewDelete(Init->getSourceRange());
-            Builder.setVarPSet(SubVar, PSet::globalVar());
-            return;
-        }
-        if (const auto* Cast = dyn_cast<ImplicitCastExpr>(Init); Cast && Cast->getCastKind() == CK_NullToPointer) {
-            Builder.setVarPSet(SubVar, PSet::null(NullReason::defaultConstructed(Range, B)));
-            return;
-        }
-
-        // TODO
-        Builder.setVarPSet(SubVar, {});
-    });
+            // TODO
+            Builder.setVarPSet(SubVar, {});
+        });
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -104,8 +122,8 @@ void handleAggregateInit(const Variable& Base, const CXXRecordDecl* RD, const In
                 if (const auto* SubInitE = dyn_cast<InitListExpr>(SubE)) {
                     handleAggregateInit(VV, FieldRD, SubInitE, B, Range, Builder);
                 } else {
-                    Builder.forEachExprMember(SubE, [VV, &Builder](const Variable& V, const PSet& P) {
-                        VV.chainFields(V);
+                    Builder.forEachExprMember(SubE, [VV, &Builder](const SubVarPath& Path, const PSet& P) {
+                        VV.chainFields(Path);
                         Builder.setVarPSet(VV, P);
                     });
                 }
@@ -150,13 +168,13 @@ void handleAggregateCopy(const Expr* LHS, const Expr* RHS, PSBuilder& Builder)
     const auto* RD = LHS->getType()->getAsCXXRecordDecl();
     const Variable Base(LHS);
     expandAggregate(Base, RD,
-        [&Base, &Builder, Other, &OtherPS](const Variable& LhsSubVar, const FieldDecl*, TypeClassification TC) {
+        [&Base, &Builder, Other, &OtherPS](const Variable& LhsSubVar, const SubVarPath& Path, TypeClassification TC) {
             if (!Other) {
                 Builder.setVarPSet(LhsSubVar, OtherPS);
                 return;
             }
 
-            const Variable RhsSubVar(Other->chainFields(LhsSubVar));
+            const Variable RhsSubVar(Other->chainFields(Path));
             if (!TC.isPointer()) {
                 return;
             }

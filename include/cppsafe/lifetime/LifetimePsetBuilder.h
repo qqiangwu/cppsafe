@@ -42,7 +42,7 @@ public:
     virtual std::optional<PSet> getVarPSet(const Variable& V) = 0;
     virtual void setVarPSet(Variable V, const PSet& PS) = 0;
     virtual void clearVarPSet(const Variable& V) = 0;
-    virtual void forEachExprMember(const Expr* Ex, llvm::function_ref<void(const Variable&, const PSet&)> Fn) = 0;
+    virtual void forEachExprMember(const Expr* Ex, llvm::function_ref<void(const SubVarPath&, const PSet&)> Fn) = 0;
 
     virtual void debugPmap(SourceRange Range) const = 0;
 

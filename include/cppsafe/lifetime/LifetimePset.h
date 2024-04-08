@@ -32,6 +32,8 @@
 
 namespace clang::lifetime {
 
+using SubVarPath = llvm::SmallVector<const FieldDecl*, 4>;
+
 /// A Variable can represent a base:
 /// - a local variable: Var contains a non-null VarDecl
 /// - a binding variable: Var contains a non-null BindingDecl
@@ -243,12 +245,14 @@ public:
         return Ret;
     }
 
-    Variable chainFields(const Variable& V) const
+    Variable chainFields(const SubVarPath& Path) const
     {
         auto Ret = *this;
-        ranges::actions::push_back(Ret.FDs, V.FDs);
+        ranges::actions::push_back(Ret.FDs, Path);
         return Ret;
     }
+
+    const SubVarPath& getSubVarPath() const { return FDs; }
 
     Variable& deref(int Num = 1)
     {

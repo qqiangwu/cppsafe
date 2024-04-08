@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cppsafe/lifetime/Lifetime.h"
+#include "cppsafe/lifetime/LifetimePset.h"
 #include "cppsafe/lifetime/LifetimePsetBuilder.h"
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
 
@@ -14,7 +15,7 @@
 namespace clang::lifetime {
 
 void expandAggregate(const Variable& Base, const CXXRecordDecl* RD,
-    llvm::function_ref<void(const Variable&, const FieldDecl*, TypeClassification)> Fn);
+    llvm::function_ref<void(const Variable&, const SubVarPath&, TypeClassification)> Fn);
 
 void handleAggregateDefaultInit(
     const Variable& Base, const CXXRecordDecl* RD, const CFGBlock* B, SourceRange Range, PSBuilder& Builder);
