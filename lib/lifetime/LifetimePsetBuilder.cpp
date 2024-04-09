@@ -1499,10 +1499,7 @@ void PSetsBuilder::updatePSetsFromCondition(
         FalseBranchExitPMap = PMap;
         if (Positive) {
             // The variable is non-null in the if-branch and null in the then-branch.
-            if (PS.isNull()) {
-                Reporter.warnRedundantWorkflow(Range);
-                PS.explainWhyNull(Reporter);
-            }
+            // TODO: we may get {unknown} here if PS is {null}, but we have no better choice now
             PS.removeNull();
 
             if (!PSElseBranch.containsNull()) {
@@ -1523,11 +1520,9 @@ void PSetsBuilder::updatePSetsFromCondition(
             }
             PS.removeEverythingButNull();
 
-            if (PSElseBranch.isNull()) {
-                Reporter.warnRedundantWorkflow(Range);
-                PSElseBranch.explainWhyNull(Reporter);
-            }
+            // TODO: we may get {unknown} here if PS is {null}, but we have no better choice now
             PSElseBranch.removeNull();
+
             auto It = PMap.find(DerefV);
             if (It != PMap.end()) {
                 It->second = PSet();
