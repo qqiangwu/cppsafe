@@ -1817,6 +1817,10 @@ void PSetsBuilder::onFunctionFinish(const CFGBlock& B)
             OutPSetInPostCond, Range, Reporter, ValueSource::OutputParam, OutVarInPostCond.getName());
     }
 
+    if (isa<CXXDestructorDecl>(AnalyzedFD)) {
+        return;
+    }
+
     for (const auto& [OutVar, OutPSet] : PMap) {
         if (!OutVar.isField() && !OutVar.isDeref()) {
             continue;
