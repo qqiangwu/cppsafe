@@ -118,8 +118,8 @@ void test_if_nonnull_a3()
 
 void test_if_null_b1()
 {
-    int* p = nullptr;  // expected-note {{assigned here}}
-    if (p) {  // expected-warning {{redundant control flow, never reachable}}
+    int* p = nullptr;
+    if (p) {
         __lifetime_pset(p);  // expected-warning {{pset(p) = ((unknown))}}
     } else {
         __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
@@ -128,8 +128,8 @@ void test_if_null_b1()
 
 void test_if_null_b2()
 {
-    int* p = nullptr;  // expected-note {{assigned here}}
-    if (!p) {  // expected-warning {{redundant control flow, never reachable}}
+    int* p = nullptr;
+    if (!p) {
         __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
     } else {
         __lifetime_pset(p);  // expected-warning {{pset(p) = ((unknown))}}
@@ -143,5 +143,39 @@ void test_if_null_a3()
         __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
     } else {
         __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+    }
+}
+
+void test_if_null_iterative()
+{
+    int x;
+    int* p = nullptr;
+
+    while (true) {
+        if (p) {
+            __lifetime_pset(p);
+            // expected-warning@-1 {{pset(p) = ((unknown))}}
+            // expected-warning@-2 {{pset(p) = (x)}}
+        } else {
+            __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+            p = &x;
+            __lifetime_pset(p);  // expected-warning {{pset(p) = (x)}}
+        }
+    }
+}
+
+void test_if_nonnull_iterator()
+{
+    int x;
+    int* p = &x;
+
+    while (true) {
+        if (p) {
+            __lifetime_pset(p);  // expected-warning {{pset(p) = (x)}}
+            p = nullptr;
+            __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+        } else {
+            __lifetime_pset(p);  // expected-warning {{pset(p) = ((null))}}
+        }
     }
 }
