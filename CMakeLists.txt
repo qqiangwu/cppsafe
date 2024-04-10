@@ -42,14 +42,14 @@ set(CMAKE_CXX_EXTENSIONS Off)
 
 # Dependency management
 if(LOCAL_CLANG)
-	execute_process(COMMAND grep -v llvm conanfile.txt.tpl OUTPUT_FILE conanfile.txt RESULT_VARIABLE return_code)
+	execute_process(COMMAND grep -v llvm ${CMAKE_SOURCE_DIR}/conanfile.txt.tpl OUTPUT_FILE ${CMAKE_SOURCE_DIR}/conanfile.txt RESULT_VARIABLE return_code)
 	if(NOT ${return_code} EQUAL "0")
 		message(FATAL_ERROR "remove llvm dependency failed")
 	endif()
 
 	message(STATUS "Use local clang in ${LOCAL_CLANG} (instead of conan)")
 else()
-	execute_process(COMMAND cp conanfile.txt.tpl conanfile.txt RESULT_VARIABLE return_code)
+	execute_process(COMMAND cp ${CMAKE_SOURCE_DIR}/conanfile.txt.tpl ${CMAKE_SOURCE_DIR}/conanfile.txt RESULT_VARIABLE return_code)
 
 	message(STATUS "Use llvm from conan")
 endif()
