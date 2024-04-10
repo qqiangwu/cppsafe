@@ -581,7 +581,16 @@ public:
             return;
         }
 
-        if (!isPointer(RetVal) && !RetVal->isLValue()) {
+        const auto TC = classifyTypeCategory(RetVal->getType());
+        if (TC.isAggregate()) {
+            PSetsMap PostConditions;
+            getLifetimeContracts(
+                PostConditions, AnalyzedFD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
+            visitAggregateReturn(ignoreTransparentExprs(RetVal), PostConditions);
+            return;
+        }
+
+        if (!TC.isPointer() && !RetVal->isLValue()) {
             return;
         }
 
@@ -592,9 +601,43 @@ public:
 
         // TODO: Would be nicer if the LifetimeEnds CFG nodes would appear before
         // the ReturnStmt node
+        invalidateLocaVarsReferencedByReturn(RetPSet, R->getSourceRange());
+
+        PSetsMap PostConditions;
+        getLifetimeContracts(PostConditions, AnalyzedFD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
+        RetPSet.checkSubstitutableFor(
+            PostConditions[Variable::returnVal()], R->getSourceRange(), Reporter, ValueSource::Return);
+    }
+
+    void visitAggregateReturn(const Expr* RetVal, PSetsMap& PostConditions)
+    {
+        expandAggregate(Variable(RetVal), RetVal->getType()->getAsCXXRecordDecl(),
+            [this, RetVal, PostConditions](
+                const Variable& SubVar, const SubVarPath& Path, TypeClassification TC) mutable {
+                if (!TC.isPointer()) {
+                    return;
+                }
+
+                const auto Range = RetVal->getSourceRange();
+                auto RetSubVarPSet = getVarPSet(SubVar);
+                CPPSAFE_ASSERT(RetSubVarPSet);
+
+                invalidateLocaVarsReferencedByReturn(*RetSubVarPSet, Range);
+
+                const auto OutVar = Variable::returnVal().chainFields(Path);
+                auto& OutPSet = PostConditions[OutVar];
+                if (OutPSet.isUnknown()) {
+                    OutPSet = PSet(ContractPSet({}, true), AnalyzedFD);
+                }
+                RetSubVarPSet->checkSubstitutableFor(OutPSet, Range, Reporter, ValueSource::Return);
+            });
+    }
+
+    void invalidateLocaVarsReferencedByReturn(PSet& RetPSet, const SourceRange Range)
+    {
         for (const auto& Var : RetPSet.vars()) {
             if (Var.isTemporary()) {
-                RetPSet = PSet::invalid(InvalidationReason::temporaryLeftScope(R->getSourceRange(), CurrentBlock));
+                RetPSet = PSet::invalid(InvalidationReason::temporaryLeftScope(Range, CurrentBlock));
                 break;
             }
 
@@ -602,17 +645,11 @@ public:
                 // Allow to return a pointer to *p (then p is a parameter).
                 if (VD->hasLocalStorage()
                     && (!Var.isDeref() || classifyTypeCategory(VD->getType()) == TypeCategory::Owner)) {
-                    RetPSet
-                        = PSet::invalid(InvalidationReason::pointeeLeftScope(R->getSourceRange(), CurrentBlock, VD));
+                    RetPSet = PSet::invalid(InvalidationReason::pointeeLeftScope(Range, CurrentBlock, VD));
                     break;
                 }
             }
         }
-
-        PSetsMap PostConditions;
-        getLifetimeContracts(PostConditions, AnalyzedFD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
-        RetPSet.checkSubstitutableFor(
-            PostConditions[Variable::returnVal()], R->getSourceRange(), Reporter, ValueSource::Return);
     }
 
     void VisitCXXTemporaryObjectExpr(const CXXTemporaryObjectExpr* E)
