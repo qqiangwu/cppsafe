@@ -2,9 +2,9 @@
 [![macOS](https://github.com/qqiangwu/cppsafe/actions/workflows/ci-macos.yml/badge.svg?branch=main)](https://github.com/qqiangwu/cppsafe/actions/workflows/ci-macos.yml)
 
 # Intro
-This is a C++ static analyzer to enforce the lifetime profile:
+This is a C++ static analyzer to enforce the lifetime safety profile:
 
-+ C++ Core Guidelines Lifetime Profile: <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#SS-lifetime>
++ C++ Core Guidelines Lifetime Safety Profile: <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#SS-lifetime>
 + Spec: <https://github.com/isocpp/CppCoreGuidelines/blob/master/docs/Lifetime.pdf>
 
 The code is based on [Matthias Gehre's fork of LLVM](https://github.com/mgehre/llvm-project).
