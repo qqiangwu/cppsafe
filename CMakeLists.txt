@@ -96,7 +96,9 @@ target_include_directories(cppsafe_lib PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(cppsafe_lib PUBLIC cppsafe_deps)
 
 # BIN
-add_executable(cppsafe ${CMAKE_SOURCE_DIR}/src/main.cpp)
+add_executable(cppsafe
+	${CMAKE_SOURCE_DIR}/src/main.cpp
+	${CMAKE_SOURCE_DIR}/src/asan.cpp)
 
 target_link_libraries(cppsafe PRIVATE cppsafe_lib)
 target_link_libraries(cppsafe PRIVATE cppsafe_deps)

@@ -606,7 +606,7 @@ public:
         PSetsMap PostConditions;
         getLifetimeContracts(PostConditions, AnalyzedFD, ASTCtxt, CurrentBlock, IsConvertible, Reporter, /*Pre=*/false);
         RetPSet.checkSubstitutableFor(
-            PostConditions[Variable::returnVal()], R->getSourceRange(), Reporter, ValueSource::Return);
+            PostConditions[Variable::returnVal(AnalyzedFD)], R->getSourceRange(), Reporter, ValueSource::Return);
     }
 
     void visitAggregateReturn(const Expr* RetVal, PSetsMap& PostConditions)
@@ -624,7 +624,7 @@ public:
 
                 invalidateLocaVarsReferencedByReturn(*RetSubVarPSet, Range);
 
-                const auto OutVar = Variable::returnVal().chainFields(Path);
+                const auto OutVar = Variable::returnVal(AnalyzedFD).chainFields(Path);
                 auto& OutPSet = PostConditions[OutVar];
                 if (OutPSet.isUnknown()) {
                     OutPSet = PSet(ContractPSet({}, true), AnalyzedFD);

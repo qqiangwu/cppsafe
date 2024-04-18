@@ -13,9 +13,12 @@
 
 #ifndef LLVM_CLANG_AST_LIFETIMEATTRDATA_H
 #define LLVM_CLANG_AST_LIFETIMEATTRDATA_H
-#include "clang/AST/Decl.h"
-#include "clang/AST/Expr.h"
+
+#include "cppsafe/util/pointer_variant.h"
+
+#include <clang/AST/Decl.h>
 #include <clang/AST/DeclCXX.h>
+#include <clang/AST/Expr.h>
 
 #include <set>
 
@@ -26,27 +29,30 @@ class MaterializeTemporaryExpr;
 /// This represents an abstract memory location that is used in the lifetime
 /// contract representation.
 struct ContractVariable {
-    ContractVariable(const BindingDecl* VD)
+    explicit ContractVariable(const BindingDecl* VD)
         : Var(VD)
     {
     }
+
     ContractVariable(const VarDecl* PVD, int Deref = 0)
         : Var(PVD)
     {
         assert(PVD);
         deref(Deref);
     }
-    ContractVariable(const Expr* E)
+
+    explicit ContractVariable(const Expr* E)
         : Var(E)
     {
     }
-    ContractVariable(const RecordDecl* RD)
+
+    explicit ContractVariable(const RecordDecl* RD)
         : Var(RD)
     {
         assert(RD);
     }
 
-    static ContractVariable returnVal() { return ContractVariable(static_cast<const Expr*>(nullptr)); }
+    static ContractVariable returnVal(const FunctionDecl* FD) { return ContractVariable(FD); }
 
     bool operator==(const ContractVariable& O) const { return Var == O.Var && FDs == O.FDs; }
 
@@ -77,7 +83,7 @@ struct ContractVariable {
 
     const RecordDecl* asThis() const { return Var.dyn_cast<const RecordDecl*>(); }
 
-    bool isReturnVal() const { return Var.is<const Expr*>() && Var.get<const Expr*>() == nullptr; }
+    bool isReturnVal() const { return Var.is<const FunctionDecl*>(); }
 
     bool isMemberExpansion() const { return !FDs.empty() && FDs.back() != nullptr; }
 
@@ -118,9 +124,16 @@ struct ContractVariable {
         return Ret;
     }
 
+private:
+    explicit ContractVariable(const FunctionDecl* FD)
+        : Var(FD)
+    {
+    }
+
 protected:
-    // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
-    llvm::PointerUnion<const VarDecl*, const BindingDecl*, const Expr*, const RecordDecl*> Var;
+    cppsafe::PointerVariant<const VarDecl*, const BindingDecl*, const Expr*, const RecordDecl*, const FunctionDecl*>
+        // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
+        Var;
 
     /// Possibly empty list of fields and deref operations on the base.
     /// The First entry is the field on base, next entry is the field inside

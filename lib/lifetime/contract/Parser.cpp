@@ -75,7 +75,7 @@ static std::optional<ContractPSet> lookupVar(const FunctionDecl* FD, StringRef E
     }
     if (E == "return") {
         ContractPSet Result;
-        Result.Vars.insert(ContractVariable::returnVal());
+        Result.Vars.insert(ContractVariable::returnVal(FD));
         return Result;
     }
 
@@ -159,7 +159,7 @@ static std::optional<ContractPSet> resolveContractVar(
                 return Result;
             }
             if (Name == "Return") {
-                Result.Vars.insert(ContractVariable::returnVal());
+                Result.Vars.insert(ContractVariable::returnVal(FD));
                 return Result;
             }
 

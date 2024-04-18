@@ -15,6 +15,7 @@
 #include "cppsafe/lifetime/LifetimeTypeCategory.h"
 #include "cppsafe/lifetime/contract/Annotation.h"
 #include "cppsafe/lifetime/contract/Parser.h"
+#include "cppsafe/lifetime/type/Aggregate.h"
 #include "cppsafe/util/type.h"
 
 #include <clang/AST/Attr.h>
@@ -308,11 +309,20 @@ private:
     {
         const auto RetTC = classifyTypeCategory(FD->getReturnType());
         if (RetTC.isPointer()) {
-            Locations.Output.push_back(ContractVariable::returnVal());
+            Locations.Output.push_back(ContractVariable::returnVal(FD));
         } else if (RetTC.isAggregate()) {
-            // p2.5.1: For an Aggregate return value returned by value (not by * or &), treat it as if it were multiple
-            // return values, one for each element m of agg that is a Pointer
-            // TODO
+            expandAggregate(Variable::returnVal(FD), FD->getReturnType()->getAsCXXRecordDecl(),
+                [&Locations](const Variable& SubObj, const SubVarPath& Path, TypeClassification) {
+                    if (Path.empty()) {
+                        return;
+                    }
+
+                    if (!classifyTypeCategory(Path.back()->getType()).isPointer()) {
+                        return;
+                    }
+
+                    Locations.Output.push_back(SubObj);
+                });
         }
 
         for (const ContractVariable& CV : Locations.Output) {
@@ -442,7 +452,7 @@ private:
 
     QualType getLocationType(const ContractVariable& CV) const
     {
-        if (CV == ContractVariable::returnVal()) {
+        if (CV == ContractVariable::returnVal(FD)) {
             return FD->getReturnType();
         }
 
