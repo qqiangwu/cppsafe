@@ -60,6 +60,7 @@ jobs:
       if: github.event_name == 'pull_request'
       run: |
         mergebase=$(git merge-base --fork-point origin/${{github.event.pull_request.base.ref}})
+        clang-tidy --version
         cppship lint -c ${mergebase}
 
     - name: Build

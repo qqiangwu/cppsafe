@@ -89,7 +89,7 @@ public:
     static Variable thisPointer(const RecordDecl* RD) { return Variable(RD); }
 
     /// A variable that represent the return value of the current function.
-    static Variable returnVal() { return Variable(ContractVariable::returnVal(), nullptr); }
+    static Variable returnVal(const FunctionDecl* FD) { return Variable(ContractVariable::returnVal(FD), nullptr); }
 
     // Is O a subobject of this?
     // Examples:
@@ -162,7 +162,6 @@ public:
     // \post never returns a null QualType
     QualType getBaseType() const
     {
-        assert(!isReturnVal() && "We don't store types of return values here");
         if (const auto* VD = asVarDecl()) {
             return VD->getType();
         }
@@ -177,6 +176,9 @@ public:
         }
         if (const auto* E = Var.dyn_cast<const Expr*>()) {
             return E->getType();
+        }
+        if (const auto* FD = Var.dyn_cast<const FunctionDecl*>()) {
+            return FD->getReturnType();
         }
 
         CPPSAFE_ASSERT(!"Invalid state");
@@ -238,7 +240,7 @@ public:
     // replace the expr part to `V`
     Variable replaceExpr(const Variable& V) const
     {
-        CPPSAFE_ASSERT(asExpr());
+        CPPSAFE_ASSERT(asExpr() || isReturnVal());
 
         auto Ret = V;
         ranges::actions::push_back(Ret.FDs, FDs);
@@ -316,7 +318,7 @@ public:
 
 private:
     // The this pointer
-    Variable(const RecordDecl* RD)
+    explicit Variable(const RecordDecl* RD)
         : ContractVariable(RD)
     {
     }
@@ -515,7 +517,7 @@ public:
         , ContainsGlobal(S.ContainsGlobal)
     {
         for (const ContractVariable& CV : S.Vars) {
-            assert(CV != ContractVariable::returnVal());
+            assert(CV != ContractVariable::returnVal(FD));
             Vars.emplace(CV, FD);
         }
     }

@@ -327,7 +327,7 @@ void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Ex
         Pair.second.bind(V, Builder.derefPSet(PS), Checking);
     };
 
-    auto ReturnIt = Fill.find(Variable::returnVal());
+    const bool HasReturnOutput = llvm::any_of(Fill, [](const auto& E) { return E.first.isReturnVal(); });
     forEachArgParamPair(
         CE,
         [&](const ParmVarDecl* PVD, const Expr* Arg, int) {
@@ -345,8 +345,13 @@ void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Ex
                 BindTwoDerefLevels(V, ArgPS, VarToPSet);
             }
             // Do the binding for the return value.
-            if (ReturnIt != Fill.end()) {
-                BindTwoDerefLevels(V, ArgPS, *ReturnIt);
+            if (HasReturnOutput) {
+                for (auto& E : Fill) {
+                    if (!E.first.isReturnVal()) {
+                        continue;
+                    }
+                    BindTwoDerefLevels(V, ArgPS, E);
+                }
             }
         },
         [&](Variable V, const CXXRecordDecl*, const Expr* ObjExpr) {
@@ -426,7 +431,15 @@ void CallVisitor::enforcePostconditions(const Expr* CallE, const FunctionDecl* C
     // Bind Pointer return value.
     auto TC = classifyTypeCategory(Callee->getReturnType());
     if (TC.isPointer()) {
-        Builder.setPSet(CallE, PostConditions[Variable::returnVal()]);
+        Builder.setPSet(CallE, PostConditions[Variable::returnVal(Callee)]);
+    } else if (TC.isAggregate()) {
+        for (const auto& [V, P] : PostConditions) {
+            if (!V.isReturnVal()) {
+                return;
+            }
+
+            Builder.setVarPSet(V.replaceExpr(Variable(CallE)), P);
+        }
     }
 
     // Bind output arguments.
