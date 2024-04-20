@@ -2,7 +2,7 @@
 
 #include <cstdio>
 
-// NOLINTBEGIN(cppcoreguidelines-avoid-do-while, cppcoreguidelines-pro-type-vararg)
+// NOLINTBEGIN(cppcoreguidelines-avoid-do-while, cppcoreguidelines-pro-type-vararg, cppcoreguidelines-macro-usage)
 #define CPPSAFE_ASSERT(e)                                                                                              \
     do {                                                                                                               \
         if (!(e)) [[unlikely]] {                                                                                       \
@@ -10,4 +10,4 @@
             std::terminate();                                                                                          \
         }                                                                                                              \
     } while (false)
-// NOLINTEND(cppcoreguidelines-avoid-do-while, cppcoreguidelines-pro-type-vararg)
+// NOLINTEND(cppcoreguidelines-avoid-do-while, cppcoreguidelines-pro-type-vararg, cppcoreguidelines-macro-usage)

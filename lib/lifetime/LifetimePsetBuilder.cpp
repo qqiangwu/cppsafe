@@ -581,7 +581,7 @@ public:
             return;
         }
 
-        const auto TC = classifyTypeCategory(RetVal->getType());
+        const auto TC = classifyTypeCategory(AnalyzedFD->getReturnType());
         if (TC.isAggregate()) {
             PSetsMap PostConditions;
             getLifetimeContracts(

@@ -56,6 +56,22 @@ A foo(int x)
     // expected-note@-1 {{pointee 'x' left the scope here}}
 }
 
+struct ReturnRef {
+    A member;
+
+    const A& foo() const
+    {
+        return member;
+    }
+};
+
+void test_member()
+{
+    ReturnRef ref;
+    const auto& x = ref.foo();
+    __lifetime_pset(x);  // expected-warning {{pset(x) = (ref)}}
+}
+
 #if 0
 A* foo1()
 {
