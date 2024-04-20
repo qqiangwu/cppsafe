@@ -116,7 +116,7 @@ struct ContractVariable {
         } else if (isThisPointer()) {
             Ret.Var = Derived->getParent();
         } else if (isReturnVal()) {
-            /* empty */
+            Ret.Var = Derived->getCanonicalDecl();
         } else {
             assert(false);
         }
@@ -126,7 +126,7 @@ struct ContractVariable {
 
 private:
     explicit ContractVariable(const FunctionDecl* FD)
-        : Var(FD)
+        : Var(FD->getCanonicalDecl())
     {
     }
 
