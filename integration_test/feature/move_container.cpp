@@ -51,7 +51,8 @@ void test_iterator()
     for (auto it = vec.begin(), end = vec.end(); it != end; ++it) {
         auto y = std::move(*it);
         // expected-warning@-1 {{dereferencing a possibly dangling pointer}}
-        // expected-note@-2 {{moved here}}
+        // expected-note@-2 2 {{moved here}}
+        // expected-warning@-3 {{passing a possibly dangling pointer as argument}}
     }
 }
 

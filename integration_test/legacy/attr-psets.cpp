@@ -147,7 +147,7 @@ struct S {
   int *get();
   bool operator==(S s) {
     int *p = s.mp;
-    __lifetime_pset(p); // expected-warning {{pset(p) = ((global))}}
+    __lifetime_pset(p); // expected-warning {{pset(p) = ((null), *s.mp)}}
     S s2;
     p = s2.mp;
     __lifetime_pset(p); // expected-warning {{pset(p) = ((invalid))}}

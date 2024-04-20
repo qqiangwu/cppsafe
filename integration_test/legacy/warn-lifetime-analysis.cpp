@@ -298,8 +298,6 @@ int *f(int *);
 void test() {
   int *p;        // expected-note {{it was never initialized here}}
   int *q = f(p); // expected-warning {{passing a dangling pointer as argument}}
-  // suppressed further diagnostics here:
-  (void)*q;
 }
 
 void f(const char **values) {

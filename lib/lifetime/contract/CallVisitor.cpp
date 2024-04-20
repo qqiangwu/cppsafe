@@ -17,9 +17,13 @@
 #include <clang/Basic/LLVM.h>
 #include <clang/Basic/OperatorKinds.h>
 #include <clang/Basic/SourceLocation.h>
+#include <gsl/util>
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/STLFunctionalExtras.h>
 
 #include <cassert>
+#include <functional>
+#include <optional>
 
 namespace clang::lifetime {
 
@@ -37,8 +41,12 @@ const FunctionDecl* getDecl(const Expr* CE)
     return Ctor;
 }
 
-template <typename PC, typename TC>
-void forEachArgParamPair(const Expr* CE, const PC& ParamCallback, const TC& ThisCallback)
+using ParameterCallback = llvm::function_ref<void(const ParmVarDecl*, const Expr*, int)>;
+using ParameterSubObjCallback = llvm::function_ref<void(const ParmVarDecl*, const SubVarPath&, const Variable&)>;
+using ThisCallback = llvm::function_ref<void(Variable V, const CXXRecordDecl*, const Expr*)>;
+
+void forEachArgParamPair(const Expr* CE, ParameterCallback ParamCallback, ThisCallback ThisCallback,
+    ParameterSubObjCallback SubObjCallback = {})
 {
     const FunctionDecl* FD = getDecl(CE);
     assert(FD);
@@ -64,10 +72,21 @@ void forEachArgParamPair(const Expr* CE, const PC& ParamCallback, const TC& This
     for (const Expr* Arg : Args) {
         // This can happen for c style var arg functions
         if (Pos >= FD->getNumParams()) {
-            ParamCallback(nullptr, Arg, Pos);
+            ParamCallback(nullptr, Arg, gsl::narrow_cast<int>(Pos));
         } else {
             const ParmVarDecl* PVD = FD->getParamDecl(Pos);
-            ParamCallback(PVD, Arg, Pos);
+            if (PVD && classifyTypeCategory(PVD->getType()).isAggregate()) {
+                expandAggregate(Variable(PVD), PVD->getType()->getAsCXXRecordDecl(),
+                    [SubObjCallback, Arg, PVD](const Variable&, const SubVarPath& Path, TypeClassification) {
+                        if (!SubObjCallback || Path.empty()) {
+                            return;
+                        }
+
+                        SubObjCallback(PVD, Path, Variable(Arg).chainFields(Path));
+                    });
+            } else {
+                ParamCallback(PVD, Arg, gsl::narrow_cast<int>(Pos));
+            }
         }
         ++Pos;
     }
@@ -303,6 +322,7 @@ const Expr* CallVisitor::getObjectNeedReset(const CallExpr* CallE)
 // In the contracts every PSets are expressed in terms of the ParmVarDecls.
 // We need to translate this to the PSets of the arguments so we can check
 // substitutability.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Expr* CE, bool Checking)
 {
     // The sources of null are the actuals, not the formals.
@@ -360,6 +380,27 @@ void CallVisitor::bindArguments(PSetsMap& Fill, const PSetsMap& Lookup, const Ex
             for (auto& VarToPSet : Fill) {
                 BindTwoDerefLevels(V, Builder.getPSet(ObjExpr), VarToPSet);
             }
+        },
+        [&](const ParmVarDecl* PVD, const SubVarPath& Path, const Variable& ExprSubObj) {
+            const auto ArgPS = Builder.getVarPSet(ExprSubObj);
+            if (ArgPS == std::nullopt) {
+                return;
+            }
+
+            Variable V = Variable(PVD).chainFields(Path);
+            V.deref();
+            for (auto& VarToPSet : Fill) {
+                BindTwoDerefLevels(V, *ArgPS, VarToPSet);
+            }
+            // Do the binding for the return value.
+            if (HasReturnOutput) {
+                for (auto& E : Fill) {
+                    if (!E.first.isReturnVal()) {
+                        continue;
+                    }
+                    BindTwoDerefLevels(V, *ArgPS, E);
+                }
+            }
         });
 }
 
@@ -391,9 +432,7 @@ void CallVisitor::checkPreconditions(const Expr* CallE, PSetsMap& PreConditions)
             checkUseAfterMove(PreConditions, PVD, Arg);
 
             if (PreConditions.contains(PVD)) {
-                if (!ArgPS.checkSubstitutableFor(PreConditions[PVD], Arg->getSourceRange(), Reporter)) {
-                    Builder.setPSet(Arg, PSet()); // Suppress further warnings.
-                }
+                ArgPS.checkSubstitutableFor(PreConditions[PVD], Arg->getSourceRange(), Reporter);
             }
 
             Variable V = PVD;
@@ -420,6 +459,28 @@ void CallVisitor::checkPreconditions(const Expr* CallE, PSetsMap& PreConditions)
             V.deref();
             if (PreConditions.contains(V)) {
                 Builder.derefPSet(ArgPS).checkSubstitutableFor(PreConditions[V], ObjExpr->getSourceRange(), Reporter);
+            }
+        },
+        [&](const ParmVarDecl* PVD, const SubVarPath& Path, const Variable& ExprSubObj) {
+            const auto ArgPSOpt = Builder.getVarPSet(ExprSubObj);
+            if (!ArgPSOpt) {
+                return;
+            }
+            const auto Range = ExprSubObj.asExpr()->getSourceRange();
+            const PSet& ArgPS = *ArgPSOpt;
+            auto V = Variable(PVD).chainFields(Path);
+
+            // if x is mentioned in PVD, and is not invalid, verify not moved
+            // TODO
+            // checkUseAfterMove(PreConditions, PVD, Arg);
+
+            if (PreConditions.contains(V)) {
+                ArgPS.checkSubstitutableFor(PreConditions[V], Range, Reporter);
+            }
+
+            V.deref();
+            if (PreConditions.contains(V)) {
+                Builder.derefPSet(ArgPS).checkSubstitutableFor(PreConditions[V], Range, Reporter);
             }
         });
 }

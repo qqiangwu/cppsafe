@@ -96,13 +96,20 @@ private:
             const QualType ParamType = PVD->getType();
             const TypeClassification TC = classifyTypeCategory(ParamType);
 
-// value expansion is not handled well
-#ifdef NOT_IMPLEMENTED
             if (TC.isAggregate()) {
-                expandParameter(
-                    ContractVariable(PVD), ParamType, ParamType, nullptr, ContractAttr->PrePSets, Locations);
+                expandAggregate(Variable(PVD), ParamType->getAsCXXRecordDecl(),
+                    [ContractAttr, &Locations](const Variable& SubObj, const SubVarPath& Path, TypeClassification TC) {
+                        if (!TC.isPointer()) {
+                            return;
+                        }
+
+                        ContractAttr->PrePSets.emplace(
+                            SubObj, ContractPSet(SubObj.derefCopy(), isNullableType(Path.back()->getType())));
+                        addParamSet(Locations.Input, SubObj);
+                    });
+                continue;
             }
-#endif
+
             if (!TC.isIndirection()) {
                 continue;
             }
