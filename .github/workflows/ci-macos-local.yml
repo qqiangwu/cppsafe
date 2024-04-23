@@ -65,3 +65,28 @@ jobs:
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config ${{ matrix.build_type }} -j
+
+    - name: Install
+      if: github.event_name == 'pull_request'
+      run: mv build/cppsafe $(brew --prefix llvm@17)/bin/
+
+    - name: Test with RocksDB
+      if: github.event_name == 'pull_request'
+      run: |
+        git clone https://github.com/qqiangwu/rocksdb-analysis.git
+        cd rocksdb-analysis
+        CC=$(brew --prefix llvm@17)/bin/clang CXX=$(brew --prefix llvm@17)/bin/clang++ cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DWITH_GFLAGS=OFF -DROCKSDB_BUILD_SHARED=OFF
+        find . -name '*.cc' | sort | xargs -L 1 -I {} -P 3 -t bash -c "cppsafe -p build {} 2>&1" > me.log || true
+        grep warning: me.log | sort | uniq -c | sort -k1n
+
+    - uses: actions/upload-artifact@v4
+      if: github.event_name == 'pull_request'
+      with:
+        name: rocksdb-result
+        path: rocksdb-analysis/me.log
+
+    - name: Check results
+      if: github.event_name == 'pull_request'
+      working-directory: rocksdb-analysis
+      run: |
+        [[ ! $(grep "Stack dump" me.log) ]] || (tail -n 100 me.log && false)

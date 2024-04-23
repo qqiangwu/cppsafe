@@ -929,9 +929,10 @@ public:
             if (AllowNonExisting) {
                 return {};
             }
-#ifndef NDEBUG
+
+            E->getSourceRange().dump(ASTCtxt.getSourceManager());
             E->dump();
-#endif
+
             CPPSAFE_ASSERT(!"Expression has no entry in RefersTo");
         }
 
@@ -949,9 +950,9 @@ public:
             return {};
         }
 
-#ifndef NDEBUG
+        E->getSourceRange().dump(ASTCtxt.getSourceManager());
         E->dump();
-#endif
+
         CPPSAFE_ASSERT(!"Expression has no entry in PSetsOfExpr");
     }
 
