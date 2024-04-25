@@ -22,6 +22,7 @@
 #include <clang/Basic/Specifiers.h>
 #include <clang/Sema/Sema.h>
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <array>
 #include <cassert>
@@ -511,12 +512,18 @@ static QualType getPointeeType(const CXXRecordDecl* R)
     const CXXMethodDecl* FoundMD = nullptr;
     if (hasMethodWithNameAndArgNum(R, "begin", 0, &FoundMD)) {
         auto PointeeType = FoundMD->getReturnType();
+        if (const auto* SR = dyn_cast<ClassTemplateSpecializationDecl>(R)) {
+            // consider iterator class inside a view class
+            getSema()->InstantiateClassTemplateSpecializationMembers(R->getBeginLoc(),
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
+                const_cast<ClassTemplateSpecializationDecl*>(SR),
+                TemplateSpecializationKind::TSK_ExplicitInstantiationDeclaration);
+        }
+
         if (classifyTypeCategory(PointeeType) != TypeCategory::Pointer) {
-#if CLASSIFY_DEBUG
             // TODO: diag?
             llvm::errs() << "begin() function does not return a Pointer!\n";
             FoundMD->dump();
-#endif
             return {};
         }
         PointeeType = getPointeeType(PointeeType);

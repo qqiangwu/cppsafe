@@ -127,14 +127,16 @@ private:
             switch (classifyTypeCategory(PointeeType).TC) {
             case TypeCategory::Owner: {
                 ContractAttr->PrePSets.emplace(ParamDerefLoc, ParamDerefPSet);
-                if (!ParamType->isRValueReferenceType()) {
-                    if (ParamType->isLValueReferenceType() && PointeeType.isConstQualified()) {
-                        addParamSet(Locations.InputWeak, ParamLoc);
-                        addParamSet(Locations.InputWeak, ParamDerefLoc);
-                    } else {
-                        addParamSet(Locations.Input, ParamLoc);
-                        addParamSet(Locations.Input, ParamDerefLoc);
-                    }
+                // Add RValueRef to InputWeak Set, consider:
+                // auto key_view(Map&&);
+                // without this, pset(return) = {global}, which is misleading
+                if ((ParamType->isLValueReferenceType() && PointeeType.isConstQualified())
+                    || ParamType->isRValueReferenceType()) {
+                    addParamSet(Locations.InputWeak, ParamLoc);
+                    addParamSet(Locations.InputWeak, ParamDerefLoc);
+                } else {
+                    addParamSet(Locations.Input, ParamLoc);
+                    addParamSet(Locations.Input, ParamDerefLoc);
                 }
                 break;
             }
@@ -357,7 +359,7 @@ private:
         ContractPSet Ret;
         for (const ContractVariable& CV : Locations.Input) {
             if (!CV.isMemberExpansion()) {
-                if (canAssign(getLocationType(CV), OutputType)) {
+                if (canAssign(getLocationType(CV), OutputType, CV.isThisPointer())) {
                     Ret.merge(ContractAttr->PrePSets.at(CV));
                 }
                 continue;
@@ -370,14 +372,15 @@ private:
             //  int* foo(Owner* aggr.owner)
             //  int* foo(int* aggr.val)
             //  Owner* foo(Owner* aggr.owner)
-            if (canAssign(getLocationType(CV), OutputType) || canAssign(getMemberLocationType(CV), OutputType)) {
+            if (canAssign(getLocationType(CV), OutputType, CV.isThisPointer())
+                || canAssign(getMemberLocationType(CV), OutputType, CV.isThisPointer())) {
                 Ret.merge(ContractAttr->PrePSets.at(CV));
             }
         }
         if (Ret.isEmpty()) {
             for (const ContractVariable& CV : Locations.InputWeak) {
                 if (!CV.isMemberExpansion()) {
-                    if (canAssign(getLocationType(CV), OutputType)) {
+                    if (canAssign(getLocationType(CV), OutputType, CV.isThisPointer())) {
                         Ret.merge(ContractAttr->PrePSets.at(CV));
                     }
                     continue;
@@ -386,7 +389,8 @@ private:
                     continue;
                 }
 
-                if (canAssign(getLocationType(CV), OutputType) || canAssign(getMemberLocationType(CV), OutputType)) {
+                if (canAssign(getLocationType(CV), OutputType, CV.isThisPointer())
+                    || canAssign(getMemberLocationType(CV), OutputType, CV.isThisPointer())) {
                     Ret.merge(ContractAttr->PrePSets.at(CV));
                 }
             }
@@ -442,7 +446,7 @@ private:
         return Guide->getDeducedTemplate()->getTemplateParameters()->size();
     }
 
-    bool canAssign(const QualType From, const QualType To) const
+    bool canAssign(const QualType From, const QualType To, bool DontExpand) const
     {
         const QualType FromPointee = getPointeeType(From);
         if (FromPointee.isNull()) {
@@ -454,7 +458,28 @@ private:
             return false;
         }
 
-        return IsConvertible(ASTCtxt.getPointerType(FromPointee), ASTCtxt.getPointerType(ToPointee));
+        const auto I = IsConvertible(ASTCtxt.getPointerType(FromPointee), ASTCtxt.getPointerType(ToPointee));
+        if (I || DontExpand) {
+            return I;
+        }
+
+        const auto* RD = FromPointee->getAsCXXRecordDecl();
+        if (!RD) {
+            return false;
+        }
+
+        for (const auto* FD : RD->fields()) {
+            QualType SubObj = FD->getType();
+            if (FromPointee.isConstQualified()) {
+                SubObj = ASTCtxt.getConstType(SubObj);
+            }
+            const auto I = IsConvertible(ASTCtxt.getPointerType(SubObj), ASTCtxt.getPointerType(ToPointee));
+            if (I) {
+                return I;
+            }
+        }
+
+        return false;
     }
 
     QualType getLocationType(const ContractVariable& CV) const
