@@ -7,6 +7,9 @@
 #include <string>
 
 template <class T>
+void __lifetime_type_category() {}
+
+template <class T>
 void __lifetime_type_category_arg(T&&) {}
 
 template <class T>
@@ -110,6 +113,24 @@ using namespace std;
 
 int main()
 {
+    using T1 = elements_view<std::map<int, std::string>, 0>;
+    using T1_iter = T1::iterator;
+    using T2 = elements_view<std::map<int, std::string>, 1>;
+    using T2_iter = T2::iterator;
+    using T3 = elements_view<std::map<int, std::string>&, 0>;
+    using T3_iter = T1::iterator;
+    using T4 = elements_view<std::map<int, std::string>&, 1>;
+    using T4_iter = T2::iterator;
+
+    __lifetime_type_category<T1>();  // expected-warning {{lifetime type category is Pointer with pointee const int}}
+    __lifetime_type_category<T1_iter>();  // expected-warning {{lifetime type category is Pointer with pointee const int}}
+    __lifetime_type_category<T2>();  // expected-warning {{lifetime type category is Pointer with pointee std::string}}
+    __lifetime_type_category<T2_iter>();  // expected-warning {{lifetime type category is Pointer with pointee std::string}}
+    __lifetime_type_category<T3>();  // expected-warning {{lifetime type category is Pointer with pointee const int}}
+    __lifetime_type_category<T3_iter>();  // expected-warning {{lifetime type category is Pointer with pointee const int}}
+    __lifetime_type_category<T4>();  // expected-warning {{lifetime type category is Pointer with pointee std::string}}
+    __lifetime_type_category<T4_iter>();  // expected-warning {{lifetime type category is Pointer with pointee std::string}}
+
     map<int, string> mp{{1, "one"}, {2, "two"}, {3, "three"}, {4, "four"}};
 
     Use(elements<0>(mp));
