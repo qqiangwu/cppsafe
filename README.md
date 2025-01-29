@@ -70,6 +70,8 @@ Note that cppsafe will detect system includes via `c++`, you can override it via
 CXX=/opt/homebrew/opt/llvm/bin/clang cppsafe example.cpp -- -std=c++20
 ```
 
+> Note: cppship should be used with std17 or above, since cpp17 has changed the rule for temporaries.
+
 ### With compile\_commands.json
 Generally, you should use cppsafe with compile\_commands.json.
 

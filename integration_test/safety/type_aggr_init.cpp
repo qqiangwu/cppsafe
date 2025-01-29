@@ -51,6 +51,14 @@ void test_default_init()
     __lifetime_pset(b.c);  // expected-warning {{pset(b.c) = (*b.c)}}
 }
 
+void test_list_init()
+{
+    int t = 0;
+    Aggr a = {.y = &t };
+    __lifetime_pset(a);  // expected-warning {{pset(a) = (a)}}
+    __lifetime_pset(a.y);  // expected-warning {{pset(a.y) = (t)}}
+}
+
 void test_copy_init()
 {
     int m = 0;

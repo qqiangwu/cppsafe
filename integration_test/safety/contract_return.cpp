@@ -20,3 +20,16 @@ void test()
     auto* p2 = d.foo(&x);
     __lifetime_pset(p2);  // expected-warning {{pset(p2) = (x)}}
 }
+
+int* get()
+{
+    static int x = 0;
+    return &x;
+}
+
+int* get2()
+{
+    static int x;
+    static int* y = &x;
+    return y;
+}
