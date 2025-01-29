@@ -107,7 +107,7 @@ public:
     /// Does not ignore MaterializeTemporaryExpr as Expr::IgnoreParenImpCasts
     /// would.
     // NOLINTBEGIN(readability-else-after-return)
-    static const Expr* ignoreTransparentExprs(const Expr* E, bool IgnoreLValueToRValue = false)
+    const Expr* ignoreTransparentExprs(const Expr* E, bool IgnoreLValueToRValue = false) const override
     {
         while (true) {
             E = E->IgnoreParens();
@@ -150,7 +150,7 @@ public:
         // NOLINTEND(readability-else-after-return)
     }
 
-    static bool isIgnoredStmt(const Stmt* S)
+    bool isIgnoredStmt(const Stmt* S)
     {
         const Expr* E = dyn_cast<Expr>(S);
         return E && ignoreTransparentExprs(E) != E;
@@ -1068,13 +1068,18 @@ public:
     // NOLINTNEXTLINE(readability-identifier-naming): required by parent
     void VisitVarDecl(const VarDecl* VD)
     {
-        if (const auto* DD = dyn_cast<DecompositionDecl>(VD)) {
+        if (const auto* DD = dyn_cast_if_present<DecompositionDecl>(VD)) {
             visitDecompositionDecl(DD);
             return;
         }
 
         const Expr* Initializer = VD->getInit();
         const SourceRange Range = VD->getSourceRange();
+
+        // NB. clang don't generage ExprWithCleanups node in CFG
+        if (const auto* E = dyn_cast_if_present<ExprWithCleanups>(Initializer)) {
+            Initializer = E->getSubExpr();
+        }
 
         switch (classifyTypeCategory(VD->getType())) {
         case TypeCategory::Pointer: {

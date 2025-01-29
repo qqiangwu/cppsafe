@@ -32,6 +32,8 @@ public:
 
     DISALLOW_COPY_AND_MOVE(PSBuilder);
 
+    virtual const Expr* ignoreTransparentExprs(const Expr* E, bool IgnoreLValueToRValue = false) const = 0;
+
     virtual void setPSet(const Expr* E, const PSet& PS) = 0;
     virtual void setPSet(const PSet& LHS, PSet RHS, SourceRange Range) = 0;
 

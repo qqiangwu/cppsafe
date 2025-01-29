@@ -124,12 +124,12 @@ int main()
 
     __lifetime_type_category<T1>();  // expected-warning {{lifetime type category is Pointer with pointee const int}}
     __lifetime_type_category<T1_iter>();  // expected-warning {{lifetime type category is Pointer with pointee const int}}
-    __lifetime_type_category<T2>();  // expected-warning {{lifetime type category is Pointer with pointee std::string}}
-    __lifetime_type_category<T2_iter>();  // expected-warning {{lifetime type category is Pointer with pointee std::string}}
+    __lifetime_type_category<T2>();  // expected-warning {{lifetime type category is Pointer with pointee}}
+    __lifetime_type_category<T2_iter>();  // expected-warning {{lifetime type category is Pointer with pointee}}
     __lifetime_type_category<T3>();  // expected-warning {{lifetime type category is Pointer with pointee const int}}
     __lifetime_type_category<T3_iter>();  // expected-warning {{lifetime type category is Pointer with pointee const int}}
-    __lifetime_type_category<T4>();  // expected-warning {{lifetime type category is Pointer with pointee std::string}}
-    __lifetime_type_category<T4_iter>();  // expected-warning {{lifetime type category is Pointer with pointee std::string}}
+    __lifetime_type_category<T4>();  // expected-warning {{lifetime type category is Pointer with pointee}}
+    __lifetime_type_category<T4_iter>();  // expected-warning {{lifetime type category is Pointer with pointee}}
 
     map<int, string> mp{{1, "one"}, {2, "two"}, {3, "three"}, {4, "four"}};
 

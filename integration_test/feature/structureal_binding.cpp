@@ -36,7 +36,7 @@ int main()
 
         const auto& [x3, y3] = get1();
         __lifetime_pset(x3);  // expected-warning {{(unknown)}}
-        __lifetime_pset(y3);  // expected-warning {{(unknown)}}
+        __lifetime_pset(y3);  // expected-warning {{(global)}}
 
         auto& [x4, y4] = get2(d);
         __lifetime_pset(x4);  // expected-warning {{(unknown)}}

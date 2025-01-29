@@ -164,18 +164,19 @@ void handleAggregateCopy(const Expr* LHS, const Expr* RHS, PSBuilder& Builder)
     const auto OtherPS = Builder.getPSet(RHS);
     CPPSAFE_ASSERT(OtherPS.vars().size() <= 1);
 
-    const auto* Other = OtherPS.vars().empty() ? nullptr : &*OtherPS.vars().begin();
+    // if PSet(RHS) = {}, use it as a placeholder to derive members
+    const Variable Candidate(Builder.ignoreTransparentExprs(RHS));
+    const auto* Other = OtherPS.vars().empty() ? &Candidate : &*OtherPS.vars().begin();
     const auto* RD = LHS->getType()->getAsCXXRecordDecl();
     const Variable Base(LHS);
     expandAggregate(Base, RD,
         [&Base, &Builder, Other, &OtherPS](const Variable& LhsSubVar, const SubVarPath& Path, TypeClassification TC) {
-            if (!Other) {
-                Builder.setVarPSet(LhsSubVar, OtherPS);
-                return;
-            }
-
             const Variable RhsSubVar(Other->chainFields(Path));
             if (!TC.isPointer()) {
+                return;
+            }
+            if (OtherPS.containsGlobal()) {
+                Builder.setVarPSet(LhsSubVar, PSet::globalVar());
                 return;
             }
 
