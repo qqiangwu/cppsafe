@@ -445,17 +445,6 @@ void bar(std::vector<std::unique_ptr<int>>& cont, std::unique_ptr<int>& p)
 }
 ```
 
-You can use `-Wlifetime-container-move` to enable check for it. But it's always better to introduce a helper function to state your intent:
-
-```cpp
-// pset(container) = {*container}
-move_each(std::move(container), [](auto&& elem){
-    // use elem
-});
-// pset(container) = {invalid}
-assert(container.empty());
-```
-
 # Difference from the original implementation
 ## Output variable
 ### Return check

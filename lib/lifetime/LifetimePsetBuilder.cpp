@@ -841,12 +841,24 @@ public:
             }
 
             if (PS.containsParent(V)) {
+                // WORKAROUND: https://github.com/qqiangwu/cppsafe/issues/82
+                //
                 // when move var with pset {*container}, only invalidate the var itself,
-                // containers and iterators are not invalidated
-                if (!Reporter.getOptions().LifetimeContainerMove) {
-                    if (V.isDeref() && isIteratorOrContainer(Var.getType())) {
-                        continue;
-                    }
+                // containers and iterators are not invalidated.
+                // <code>
+                // void foo(std::vector<std::unique_ptr<int>>& cont, std::unique_ptr<int>& p)
+                //{
+                //    for (auto& x : cont) {
+                //      p = std::move(x);
+                //}
+
+                //    for (auto& x: cont) {
+                //      use(x);
+                //}
+                //}
+                //</code>
+                if (V.isDeref() && isIteratorOrContainer(Var.getType())) {
+                    continue;
                 }
                 setPSet(PSet::singleton(Var), PSet::invalid(Reason), Reason.getRange());
             }
