@@ -62,9 +62,6 @@ static const cl::opt<bool> WarnLifetimeDisabled("Wlifetime-disabled",
 static const cl::opt<bool> WarnLifetimeOutput("Wlifetime-output",
     desc("Enforce output parameter validity check in all paths"), cl::init(false), cl::cat(CppSafeCategory));
 
-static const cl::opt<bool> WarnLifetimeContainerMove("Wlifetime-container-move",
-    desc("Enable strict check on element move of containers"), cl::init(false), cl::cat(CppSafeCategory));
-
 struct DetectSystemIncludesError : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
@@ -132,7 +129,6 @@ public:
             .LifetimeDisabled = WarnLifetimeDisabled,
             .LifetimeGlobal = WarnLifetimeGlobal,
             .LifetimeOutput = WarnLifetimeOutput,
-            .LifetimeContainerMove = WarnLifetimeContainerMove,
         };
 
         return std::make_unique<AstConsumer>(Options);
