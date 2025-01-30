@@ -841,7 +841,7 @@ public:
             }
 
             if (PS.containsParent(V)) {
-                // WORKAROUND: https://github.com/qqiangwu/cppsafe/issues/82
+                // BADCASE: https://github.com/qqiangwu/cppsafe/issues/82
                 //
                 // when move var with pset {*container}, only invalidate the var itself,
                 // containers and iterators are not invalidated.
@@ -851,7 +851,6 @@ public:
                 //    for (auto& x : cont) {
                 //      p = std::move(x);
                 //}
-
                 //    for (auto& x: cont) {
                 //      use(x);
                 //}
@@ -879,6 +878,20 @@ public:
 
             auto DerefV = V;
             DerefV.deref();
+            if (Var == DerefV) {
+                // WORKAROUND
+                //<code>
+                // inline void PinnableWideColumns::MoveValue(std::string&& value) {
+                // std::string* const buf = value_.GetSelf();
+                // assert(buf);
+                //
+                // *buf = std::move(value);  // PMap[(*(*this).value_)] = (**(*this).value_)
+                //
+                // value_.PinSelf();
+                //}
+                //</code>
+                continue;
+            }
             if (PS.containsParent(DerefV)) {
                 setPSet(PSet::singleton(Var), PSet::invalid(Reason), Reason.getRange());
             }
