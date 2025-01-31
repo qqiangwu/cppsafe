@@ -1102,10 +1102,11 @@ void kill_materialized_temporary() {
 void delete_pointee(int *p) {
   int *q = p;
   __lifetime_pset(q); // expected-warning {{((null), *p)}}
+  // expected-note@+1 {{deleted here}}
   delete q;  // expected-warning {{naked new-deletes disables lifetime analysis}}
   __lifetime_pset(q); // expected-warning {{((invalid))}}
   __lifetime_pset(p); // expected-warning {{((invalid))}}
-}
+}  // expected-warning {{returning a dangling pointer as output value '*p'}}
 
 int throw_local() {
   int i;
@@ -1673,6 +1674,7 @@ struct Node {
       __lifetime_pset(next_temp); // expected-warning {{(*(*this).next)}}
                                   // expected-warning@-1 {{((global), *(*this).next)}}
                                   // expected-warning@-2 {{((global), *(*this).next)}}
+      // expected-note@+1 {{deleted here}}
       delete cur;  // expected-warning {{naked new-deletes disables lifetime analysis}}
       __lifetime_pset(next_temp); // expected-warning {{(*(*this).next)}}
                                   // expected-warning@-1 {{((global), *(*this).next)}}
@@ -1682,7 +1684,7 @@ struct Node {
                             // expected-warning@-2 {{(invalid)}}
       cur = next_temp;
     }
-  }
+  }  // expected-warning {{returning a dangling pointer as output value '*this'}}
 };
 
 namespace boundedness {

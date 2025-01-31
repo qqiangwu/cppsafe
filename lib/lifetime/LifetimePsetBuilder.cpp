@@ -191,10 +191,23 @@ public:
             for (const auto& Var : PS.vars()) {
                 // TODO: diagnose if we are deleting the buffer of on owner?
                 invalidateVar(Var, InvalidationReason::deleted(DE->getSourceRange(), CurrentBlock));
+
+                // void free(int* p)
+                // after the call, *p is invalid. but to avoid noisy, turn it off by default
+                if (Reporter.getOptions().LifetimeDisabled) {
+                    setPSet(PSet::singleton(Var),
+                        PSet::invalid(InvalidationReason::deleted(DE->getSourceRange(), CurrentBlock)),
+                        DE->getSourceRange());
+                }
             }
 
-            setPSet(getPSet(DE->getArgument()->IgnoreImplicit()),
-                PSet::invalid(InvalidationReason::deleted(DE->getSourceRange(), CurrentBlock)), DE->getSourceRange());
+            const auto* E = DE->getArgument()->IgnoreCasts();
+            // auto* p = new int{}; delete p;
+            if (E->isLValue()) {
+                setPSet(getPSet(E), PSet::invalid(InvalidationReason::deleted(DE->getSourceRange(), CurrentBlock)),
+                    DE->getSourceRange());
+                return;
+            }
         }
     }
 
@@ -1866,7 +1879,9 @@ void PSetsBuilder::onFunctionFinish(const CFGBlock& B)
         }
 
         auto OutVarIt = PMap.find(OutVarInPostCond);
-        CPPSAFE_ASSERT(OutVarIt != PMap.end());
+        if (OutVarIt == PMap.end()) {
+            continue;
+        }
 
         OutVarIt->second.transformVars([&](Variable V) {
             if (!V.isField()) {
@@ -1910,6 +1925,11 @@ void PSetsBuilder::onFunctionFinish(const CFGBlock& B)
         // TODO: add this&&
 
         if (OutPSet.containsInvalid()) {
+            auto It = PostConditions.find(OutVar);
+            if (It != PostConditions.end() && It->second.containsInvalid()) {
+                continue;
+            }
+
             Reporter.warnNullDangling(
                 WarnType::Dangling, Range, ValueSource::OutputParam, OutVar.getName(), !OutPSet.isInvalid());
             OutPSet.explainWhyInvalid(Reporter);

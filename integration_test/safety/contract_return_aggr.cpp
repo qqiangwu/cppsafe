@@ -76,7 +76,6 @@ B createStaticB()
 {
     static int t = 0;
     static const B b { .x = &t };
-    __lifetime_pmap();
     return b;
 }
 
