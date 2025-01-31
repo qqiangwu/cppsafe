@@ -22,7 +22,6 @@
 #include <clang/Basic/Specifiers.h>
 #include <clang/Sema/Sema.h>
 #include <llvm/ADT/STLExtras.h>
-#include <llvm/Support/raw_ostream.h>
 
 #include <array>
 #include <cassert>
@@ -521,9 +520,6 @@ static QualType getPointeeType(const CXXRecordDecl* R)
         }
 
         if (classifyTypeCategory(PointeeType) != TypeCategory::Pointer) {
-            // TODO: diag?
-            llvm::errs() << "begin() function does not return a Pointer!\n";
-            FoundMD->dump();
             return {};
         }
         PointeeType = getPointeeType(PointeeType);
